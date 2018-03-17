@@ -422,7 +422,7 @@ class Heimdall:
         data_x = [day[0] for day in messages_all_time]
         data_y = [day[1] for day in messages_all_time]
         if self.tests:
-            last_28_url = "url_goes_here"
+            all_time_url = "url_goes_here"
         else:
             all_time_graph = self.graph_data(data_x, data_y, title)
             all_time_file = self.save_graph(all_time_graph)
