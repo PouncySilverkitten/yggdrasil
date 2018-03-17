@@ -351,8 +351,7 @@ class Heimdall:
 
     def upload_and_delete_graph(self, filename):
         """Uploads passed file to imgur and deletes it"""
-        if not self.tests: url = self.imgur_client.upload_image(filename).link
-        else: url = "url_goes_here"
+        url = self.imgur_client.upload_image(filename).link
         os.remove(filename)
         return(url)
 
@@ -411,17 +410,23 @@ class Heimdall:
         title = "Messages by {}, last 28 days".format(user)
         data_x = [day[0] for day in last_28_days]
         data_y = [day[1] for day in last_28_days]
-        last_28_graph = self.graph_data(data_x, data_y, title)
-        last_28_file = self.save_graph(last_28_graph)
-        last_28_url = self.upload_and_delete_graph(last_28_file)
+        if self.tests:
+            last_28_url = "url_goes_here"
+        else:
+            last_28_graph = self.graph_data(data_x, data_y, title)
+            last_28_file = self.save_graph(last_28_graph)
+            last_28_url = self.upload_and_delete_graph(last_28_file)
 
         messages_all_time = days.items()
         title = "Messages by {}, all time".format(user)
         data_x = [day[0] for day in messages_all_time]
         data_y = [day[1] for day in messages_all_time]
-        all_time_graph = self.graph_data(data_x, data_y, title)
-        all_time_file = self.save_graph(all_time_graph)
-        all_time_url = self.upload_and_delete_graph(all_time_file)
+        if self.tests:
+            last_28_url = "url_goes_here"
+        else:
+            all_time_graph = self.graph_data(data_x, data_y, title)
+            all_time_file = self.save_graph(all_time_graph)
+            all_time_url = self.upload_and_delete_graph(all_time_file)
 
         # Get requester's position.
         position = self.get_position(normnick)
