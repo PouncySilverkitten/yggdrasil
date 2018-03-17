@@ -1,5 +1,4 @@
 import unittest
-import xmlrunner
 
 from heimdall import Heimdall
 
