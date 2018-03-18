@@ -512,13 +512,17 @@ Ranking:\t\t\t\t\t{} of {}.
         position = self.get_position(user)
         return("Position {}".format(position))
 
-    def get_parse_message(self):
+    def get_message(self):
+        """Gets messages from heim"""
         self.conn.commit()
         message = self.heimdall.parse()
 
         if message == "Killed":
             raise KillError
 
+        return(message)
+
+    def parse(self, message):
         if message['type'] == 'send-event' or message['type'] == 'send-reply':
             self.insert_message(message)
             self.total_messages_all_time += 1
@@ -536,17 +540,26 @@ Ranking:\t\t\t\t\t{} of {}.
                 if comm[0] == "!stats":
                     if len(comm) > 1 and comm[1][0] == "@":
                         self.heimdall.send(self.get_user_stats(comm[1][1:]), message['data']['id'])
-                    else:
+                    elif len(comm) == 1:
                         self.heimdall.send(self.get_user_stats(message['data']['sender']['name']), message['data']['id'])
+                    else:
+                        self.heimdall.send("Sorry, I didn't understand that. Syntax is !stats or !stats @user", message['data']['id'])
 
                 elif comm[0] == "!roomstats":
-                    self.heimdall.send(self.get_room_stats(), message['data']['id'])
+                    if len(comm) > 1:
+                        self.heimdall.send("Sorry, only stats for the current room are supported.", message['data']['id'])
+                    else:
+                        self.heimdall.send(self.get_room_stats(), message['data']['id'])
                 
                 elif comm[0] == "!rank":
                     if len(comm) > 1 and comm[1][0] == "@":
                         self.heimdall.send(self.get_rank_of_user(comm[1][1:]), message['data']['id'])
                     elif len(comm) > 1:
-                        self.heimdall.send(self.get_user_at_position(comm[1]), message['data']['id'])
+                        try:
+                            pos = int(comm[1])
+                            self.heimdall.send(self.get_user_at_position(pos), message['data']['id'])
+                        except ValueError:
+                            self.heimdall.send("Sorry, no name or number detected. Syntax is !rank (@user|<number>)", message['data']['id'])
                     else:
                         self.heimdall.send(self.get_rank_of_user(message['data']['sender']['name']), message['data']['id'])
 
@@ -556,7 +569,7 @@ Ranking:\t\t\t\t\t{} of {}.
             self.heimdall.connect()
             self.connect_to_database()
             while True:
-                self.get_parse_message()
+                self.parse(self.get_message())
         except KillError:
             self.heimdall.log()
             self.conn.commit()
