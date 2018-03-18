@@ -31,12 +31,12 @@ import pyimgur
 
 import karelia
 
-class UpdateDone (Exception):
+class UpdateDone(Exception):
     """Exception meaning that logs are up to date"""
     pass
 
 
-class KillError (Exception):
+class KillError(Exception):
     """Exception for when the bot is killed."""
     pass
 
@@ -53,7 +53,7 @@ class Heimdall:
         self.stealth = kwargs['stealth'] if 'stealth' in kwargs else False
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         if room == 'test':
-            self.show("Testing mode enabled...",end='')
+            self.show("Testing mode enabled...", end='')
             self.tests = True
             self.database = 'test.db'
             self.show(" done")
@@ -61,11 +61,11 @@ class Heimdall:
             self.tests = kwargs['test'] if 'test' in kwargs else False
             self.database = 'logs.db'
         self.heimdall = karelia.newBot('Heimdall', self.room)
-       
+
         self.files = {'regex': 'regex', 'possible_rooms': 'possible_rooms.json', 'help_text': 'help_text.json', 'block_list': 'block_list.json', 'imgur': 'imgur.json'}
         self.show("Loading files... ")
         for key in self.files:
-            self.show("    Loading {}...".format(key),end=' ')
+            self.show("    Loading {}...".format(key), end=' ')
             try:
                 if self.files[key].endswith('.json'):
                     with open(self.files[key], 'r') as f:
@@ -77,7 +77,7 @@ class Heimdall:
                     f.write('[]')
 
         with open(self.files['help_text'], 'r') as f:
-            self.show("Loading help text...",' ')
+            self.show("Loading help text...", ' ')
             try:
                 help_text = json.loads(f.read())
                 self.heimdall.stockResponses['shortHelp'] = help_text['short_help']
@@ -88,16 +88,16 @@ class Heimdall:
                 self.show("Error creating help text - see 'Heimdall &{}.log' for details.".format(self.room))
 
         with open(self.files['regex'], 'r') as f:
-            self.show("Loading url regex...",' ')
+            self.show("Loading url regex...", end=' ')
             try:
                 self.url_regex = f.read()
                 self.show("done")
             except:
                 self.heimdall.log()
                 self.show("Error reading url regex - see 'Heimdall &{}.log' for details.".format(self.room))
-        
+
         with open(self.files['imgur'], 'r') as f:
-            self.show("Reading imgur key, creating Imgur client...",end=' ')
+            self.show("Reading imgur key, creating Imgur client...", end=' ')
             try:
                 self.imgur_key = json.loads(f.read())[0]
                 self.imgur_client = pyimgur.Imgur(self.imgur_key)
@@ -124,7 +124,7 @@ class Heimdall:
             self.heimdall.connect(True)
 
         self.extractor = URLExtract()
-        
+ 
         self.show("Connecting to database...", end=' ')
         self.connect_to_database()
         self.show("done\nCreating tables...", end=' ')
@@ -193,7 +193,7 @@ class Heimdall:
                     if reply['type'] == 'log-reply' or reply['type'] == 'send-event':
                         data = []
                         break
-           
+ 
                 # Logs and single messages are structured differently.
                 if reply['type'] == 'log-reply':
                     # Check if the log-reply is empty, i.e. the last log-reply
@@ -201,17 +201,17 @@ class Heimdall:
                     # history
                     if len(reply['data']['log']) == 0:
                         raise UpdateDone
-           
+
                     disp = reply['data']['log'][0]
                     self.show('    ({})[{}] {}'.format( datetime.utcfromtimestamp(disp['time']).strftime("%Y-%m-%d %H:%M"),
                                                         disp['sender']['name'].translate(self.heimdall.non_bmp_map),
                                                         disp['content'].translate(self.heimdall.non_bmp_map)))
-        
+
                     # Append the data in this message to the data list ready for executemany
                     for message in reply['data']['log']:
                         if not 'parent' in message:
                             message['parent'] = ''
-                        data.append((   message['content'], message['id'], message['parent'],
+                        data.append(    (message['content'], message['id'], message['parent'],
                                         message['sender']['id'], message['sender']['name'],
                                         self.heimdall.normaliseNick(message['sender']['name']),
                                         message['time']))
