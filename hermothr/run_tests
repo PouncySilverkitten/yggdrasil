@@ -1,4 +1,4 @@
-pylint-badge heimdall.py
+pylint-badge hermothr.py
 clear
 rm coverage.svg
 pipenv run coverage run --omit */.local/* -m unittest discover -s test/ -vv

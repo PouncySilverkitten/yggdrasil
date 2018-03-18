@@ -31,12 +31,12 @@ import pyimgur
 
 import karelia
 
-class UpdateDone (Exception):
+class UpdateDone(Exception):
     """Exception meaning that logs are up to date"""
     pass
 
 
-class KillError (Exception):
+class KillError(Exception):
     """Exception for when the bot is killed."""
     pass
 
@@ -53,15 +53,19 @@ class Heimdall:
         self.stealth = stealth
         self.verbose = verbosity
         if room == 'test':
+            self.show("Testing mode enabled...", end='')
             self.tests = True
             self.database = 'test.db'
         else:
             self.tests = tests
             self.database = 'logs.db'
         self.heimdall = karelia.newBot('Heimdall', self.room)
-       
+
         self.files = {'regex': 'regex', 'possible_rooms': 'possible_rooms.json', 'help_text': 'help_text.json', 'block_list': 'block_list.json', 'imgur': 'imgur.json'}
         for key in self.files:
+
+            self.show("    Loading {}...".format(key), end=' ')
+
             try:
                 if self.files[key].endswith('.json'):
                     with open(self.files[key], 'r') as f:
@@ -72,6 +76,7 @@ class Heimdall:
                     f.write('[]')
 
         with open(self.files['help_text'], 'r') as f:
+            self.show("Loading help text...", ' ')
             try:
                 help_text = json.loads(f.read())
                 self.heimdall.stockResponses['shortHelp'] = help_text['short_help']
@@ -81,13 +86,15 @@ class Heimdall:
                 self.show("Error creating help text - see 'Heimdall &{}.log' for details.".format(self.room))
 
         with open(self.files['regex'], 'r') as f:
+            self.show("Loading url regex...", end=' ')
             try:
                 self.url_regex = f.read()
             except:
                 self.heimdall.log()
                 self.show("Error reading url regex - see 'Heimdall &{}.log' for details.".format(self.room))
-        
+
         with open(self.files['imgur'], 'r') as f:
+            self.show("Reading imgur key, creating Imgur client...", end=' ')
             try:
                 self.imgur_key = json.loads(f.read())[0]
                 self.imgur_client = pyimgur.Imgur(self.imgur_key)
@@ -116,6 +123,8 @@ class Heimdall:
             self.heimdall.connect(True)
 
         self.extractor = URLExtract()
+
+        self.show("Connecting to database...", end=' ')
 
         self.connect_to_database()
         self.check_or_create_tables()
@@ -179,7 +188,7 @@ class Heimdall:
                     if reply['type'] == 'log-reply' or reply['type'] == 'send-event':
                         data = []
                         break
-           
+ 
                 # Logs and single messages are structured differently.
                 if reply['type'] == 'log-reply':
                     # Check if the log-reply is empty, i.e. the last log-reply
@@ -187,17 +196,17 @@ class Heimdall:
                     # history
                     if len(reply['data']['log']) == 0:
                         raise UpdateDone
-           
+
                     disp = reply['data']['log'][0]
                     self.show('    ({})[{}] {}'.format( datetime.utcfromtimestamp(disp['time']).strftime("%Y-%m-%d %H:%M"),
                                                         disp['sender']['name'].translate(self.heimdall.non_bmp_map),
                                                         disp['content'].translate(self.heimdall.non_bmp_map)))
-        
+
                     # Append the data in this message to the data list ready for executemany
                     for message in reply['data']['log']:
                         if not 'parent' in message:
                             message['parent'] = ''
-                        data.append((   message['content'], message['id'], message['parent'],
+                        data.append(    (message['content'], message['id'], message['parent'],
                                         message['sender']['id'], message['sender']['name'],
                                         self.heimdall.normaliseNick(message['sender']['name']),
                                         message['time']))
@@ -356,8 +365,7 @@ class Heimdall:
         count = self.c.fetchone()[0]
 
         if count == 0:
-            self.heimdall.send('User @{} not found.'.format(user), message_id)
-            return
+            return('User @{} not found.'.format(user.replace(' ','')))
 
         # Query gets the earliest message sent
         self.c.execute('''SELECT * FROM {} WHERE normname IS ? ORDER BY time ASC'''.format(self.room), (normnick,))
@@ -381,10 +389,22 @@ class Heimdall:
         busiest_day = days_by_busyness[0]
 
         # Calculate when the first message was sent, when the most recent message was sent, and the averate messages per day.
-        first_message_sent = datetime.utcfromtimestamp(earliest[6]).strftime("%Y-%m-%d")
-        last_message_sent = datetime.utcfromtimestamp(latest[6]).strftime("%Y-%m-%d")
+
+        first_message_sent = self.date_from_timestamp(earliest[6])
+        last_message_sent = self.date_from_timestamp(latest[6])
+
+        # number_of_days only takes the average of days between the first message and the most recent message
         number_of_days = (datetime.strptime(last_message_sent, "%Y-%m-%d") - datetime.strptime(first_message_sent, "%Y-%m-%d")).days
-        if last_message_sent == datetime.utcfromtimestamp(time.time()).strftime("%Y-%m-%d"): last_message_sent = "Today"
+        
+        days_since_first_message = (datetime.today() - datetime.strptime(first_message_sent, "%Y-%m-%d")).days
+        days_since_last_message = (datetime.today() - datetime.strptime(last_message_sent, "%Y-%m-%d")).days
+
+        if first_message_sent == self.date_from_timestamp(time.time()): first_message_sent = "Today"
+        else: "{} days ago, on {}".format(first_message_sent, days_since_first_message)
+        
+        if last_message_sent == self.date_from_timestamp(time.time()): last_message_sent = "Today"
+        else: "{} days ago, on {}".format(last_message_sent, days_since_last_message)
+
         number_of_days = number_of_days if number_of_days > 0 else 1
 
         last_28_days = sorted(days.items())[::-1][:28]
@@ -412,13 +432,13 @@ class Heimdall:
 User:\t\t\t\t\t{}
 Messages:\t\t\t\t{}
 Messages Sent Today:\t\t{}
-First Message Date:\t\t{} days ago, on {}
+First Message Date:\t\t{}
 First Message:\t\t\t{}
 Most Recent Message:\t{}
 Average Messages/Day:\t{}
 Busiest Day:\t\t\t\t{}, with {} messages
 Ranking:\t\t\t\t\t{} of {}.
-{} {}""".format(user, count, messages_today, number_of_days, first_message_sent, earliest[0], last_message_sent, int(count / number_of_days), busiest_day[0], busiest_day[1], position, no_of_posters, all_time_url, last_28_url))
+{} {}""".format(user, count, messages_today, first_message_sent, earliest[0], last_message_sent, int(count / number_of_days), busiest_day[0], busiest_day[1], position, no_of_posters, all_time_url, last_28_url))
 
     def get_room_stats(self):
         """Gets and sends stats for rooms"""
@@ -454,34 +474,49 @@ Ranking:\t\t\t\t\t{} of {}.
         title = "Messages in &{}, last 28 days".format(self.room)
         data_x = [date.fromtimestamp(int(day[0])) for day in last_28_days]
         data_y = [day[1] for day in last_28_days]
-        last_28_graph = self.graph_data(data_x, data_y, title)
-        last_28_file = self.save_graph(last_28_graph)
-        last_28_url = self.upload_and_delete_graph(last_28_file)
+        if self.tests:
+            last_28_url = 'last_28_url'
+        else:
+            last_28_graph = self.graph_data(data_x, data_y, title)
+            last_28_file = self.save_graph(last_28_graph)
+            last_28_url = self.upload_and_delete_graph(last_28_file)
 
         title = "Messages in &{}, all time".format(self.room)
         data_x = [date.fromtimestamp(int(day[0])) for day in messages_by_day]
         data_y = [day[1] for day in messages_by_day]
-        all_time_graph = self.graph_data(data_x, data_y, title)
-        all_time_file = self.save_graph(all_time_graph)
-        all_time_url = self.upload_and_delete_graph(all_time_file)
+        if self.tests:
+            all_time_url = 'all_time_url'
+        else:
+            all_time_graph = self.graph_data(data_x, data_y, title)
+            all_time_file = self.save_graph(all_time_graph)
+            all_time_url = self.upload_and_delete_graph(all_time_file)
 
-        return("There have been {} posts in &{} ({} today), averaging {} posts per day over the last 28 days (the busiest was {} with {} messages sent).\n\nThe top ten posters are:\n{}\n {} {}".format(count, self.room, messages_today, per_day_last_four_weeks, busiest[0], busiest[1], top_ten, all_time_url, last_28_url))
+        return("There have been {} posts in &{} ({} today), averaging {} posts per day over the last 28 days (the busiest was {} with {} messages sent).\n\nThe top ten posters are:\n{}\n{} {}".format(count, self.room, messages_today, per_day_last_four_weeks, busiest[0], busiest[1], top_ten, all_time_url, last_28_url))
 
     def get_rank_of_user(self, user):
         """Gets and sends the position of the supplied user"""
         position = self.get_position(user)
         return("Position {}".format(position))
 
-    def get_parse_message(self):
+    def get_message(self):
+        """Gets messages from heim"""
         self.conn.commit()
         message = self.heimdall.parse()
 
+        if message == "Killed":
+            raise KillError
+
+        return(message)
+
+    def parse(self, message):
         if message['type'] == 'send-event' or message['type'] == 'send-reply':
             self.insert_message(message)
             self.total_messages_all_time += 1
             if self.total_messages_all_time % 25000 == 0:
                 self.heimdall.send("Congratulations on making the {}th post in &{}!".format(self.total_messages_all_time, self.room), message['data']['id'])
 
+            if message['type'] == 'send-reply': return
+            
             self.look_for_room_links(message['data']['content'])
             urls = self.get_urls(message['data']['content'])
             self.heimdall.send(self.get_page_titles(urls),message['data']['id'])
@@ -491,17 +526,26 @@ Ranking:\t\t\t\t\t{} of {}.
                 if comm[0] == "!stats":
                     if len(comm) > 1 and comm[1][0] == "@":
                         self.heimdall.send(self.get_user_stats(comm[1][1:]), message['data']['id'])
-                    else:
+                    elif len(comm) == 1:
                         self.heimdall.send(self.get_user_stats(message['data']['sender']['name']), message['data']['id'])
+                    else:
+                        self.heimdall.send("Sorry, I didn't understand that. Syntax is !stats or !stats @user", message['data']['id'])
 
                 elif comm[0] == "!roomstats":
-                    self.heimdall.send(self.get_room_stats(), message['data']['id'])
+                    if len(comm) > 1:
+                        self.heimdall.send("Sorry, only stats for the current room are supported.", message['data']['id'])
+                    else:
+                        self.heimdall.send(self.get_room_stats(), message['data']['id'])
                 
                 elif comm[0] == "!rank":
                     if len(comm) > 1 and comm[1][0] == "@":
                         self.heimdall.send(self.get_rank_of_user(comm[1][1:]), message['data']['id'])
                     elif len(comm) > 1:
-                        self.heimdall.send(self.get_user_at_position(comm[1]), message['data']['id'])
+                        try:
+                            pos = int(comm[1])
+                            self.heimdall.send(self.get_user_at_position(pos), message['data']['id'])
+                        except ValueError:
+                            self.heimdall.send("Sorry, no name or number detected. Syntax is !rank (@user|<number>)", message['data']['id'])
                     else:
                         self.heimdall.send(self.get_rank_of_user(message['data']['sender']['name']), message['data']['id'])
 
@@ -511,7 +555,13 @@ Ranking:\t\t\t\t\t{} of {}.
             self.heimdall.connect()
             self.connect_to_database()
             while True:
-                self.get_parse_message()
+                self.parse(self.get_message())
+        except KillError:
+            self.heimdall.log()
+            self.conn.commit()
+            self.conn.close()
+            self.heimdall.disconnect()
+            raise KillError
         except Exception:
             self.heimdall.log()
             self.conn.close()

@@ -26,9 +26,3 @@ class TestRanks(unittest.TestCase):
         self.heimdall.connect_to_database()
         for pair in self.position_pairs:
             assert self.heimdall.get_position(pair[0]) == pair[1]
-
-def main():
-    unittest.main()
-
-if __name__ == "__main__":
-    main()

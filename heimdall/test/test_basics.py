@@ -23,8 +23,3 @@ class TestBasics(unittest.TestCase):
         assert self.heimdall.date_from_timestamp(1521314568) == "2018-03-17"
         assert self.heimdall.date_from_timestamp(1552850568) == "2019-03-17"
 
-def main():
-    unittest.main()
-
-if __name__ == "__main__":
-    main()
