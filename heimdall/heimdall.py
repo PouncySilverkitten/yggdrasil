@@ -488,18 +488,24 @@ Ranking:\t\t\t\t\t{} of {}.
         title = "Messages in &{}, last 28 days".format(self.room)
         data_x = [date.fromtimestamp(int(day[0])) for day in last_28_days]
         data_y = [day[1] for day in last_28_days]
-        last_28_graph = self.graph_data(data_x, data_y, title)
-        last_28_file = self.save_graph(last_28_graph)
-        last_28_url = self.upload_and_delete_graph(last_28_file)
+        if self.tests:
+            last_28_url = 'last_28_url'
+        else:
+            last_28_graph = self.graph_data(data_x, data_y, title)
+            last_28_file = self.save_graph(last_28_graph)
+            last_28_url = self.upload_and_delete_graph(last_28_file)
 
         title = "Messages in &{}, all time".format(self.room)
         data_x = [date.fromtimestamp(int(day[0])) for day in messages_by_day]
         data_y = [day[1] for day in messages_by_day]
-        all_time_graph = self.graph_data(data_x, data_y, title)
-        all_time_file = self.save_graph(all_time_graph)
-        all_time_url = self.upload_and_delete_graph(all_time_file)
+        if self.tests:
+            all_time_url = 'all_time_url'
+        else:
+            all_time_graph = self.graph_data(data_x, data_y, title)
+            all_time_file = self.save_graph(all_time_graph)
+            all_time_url = self.upload_and_delete_graph(all_time_file)
 
-        return("There have been {} posts in &{} ({} today), averaging {} posts per day over the last 28 days (the busiest was {} with {} messages sent).\n\nThe top ten posters are:\n{}\n {} {}".format(count, self.room, messages_today, per_day_last_four_weeks, busiest[0], busiest[1], top_ten, all_time_url, last_28_url))
+        return("There have been {} posts in &{} ({} today), averaging {} posts per day over the last 28 days (the busiest was {} with {} messages sent).\n\nThe top ten posters are:\n{}\n{} {}".format(count, self.room, messages_today, per_day_last_four_weeks, busiest[0], busiest[1], top_ten, all_time_url, last_28_url))
 
     def get_rank_of_user(self, user):
         """Gets and sends the position of the supplied user"""
