@@ -1,7 +1,7 @@
 import argparse
 import signal
 import sys
-from heimdall import Heimdall
+from heimdall import Heimdall, KillError
 
 def main():
     parser = argparse.ArgumentParser()
@@ -14,18 +14,22 @@ def main():
 
     heimdall = Heimdall(room, stealth=stealth)
 
-    def onSIGINT(signum, frame):
+    def on_sigint(signum, frame):
         """Handles sigints"""
         try:
             heimdall.conn.commit()
             heimdall.conn.close()
+            heimdall.heimdall.disconnect()
         finally:
             sys.exit()
 
-    signal.signal(signal.SIGINT, onSIGINT)
+    signal.signal(signal.SIGINT, on_sigint)
     
     while True:
-        heimdall.main()
+        try:
+            heimdall.main()
+        except KillError:
+            sys.exit()
 
 if __name__ == '__main__':
     main()
