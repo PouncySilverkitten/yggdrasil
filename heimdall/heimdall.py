@@ -374,8 +374,7 @@ class Heimdall:
         count = self.c.fetchone()[0]
 
         if count == 0:
-            self.heimdall.send('User @{} not found.'.format(user), message_id)
-            return
+            return('User @{} not found.'.format(user.replace(' ','')))
 
         # Query gets the earliest message sent
         self.c.execute('''SELECT * FROM {} WHERE normname IS ? ORDER BY time ASC'''.format(self.room), (normnick,))
@@ -401,9 +400,19 @@ class Heimdall:
         # Calculate when the first message was sent, when the most recent message was sent, and the averate messages per day.
         first_message_sent = self.date_from_timestamp(earliest[6])
         last_message_sent = self.date_from_timestamp(latest[6])
+
+        # number_of_days only takes the average of days between the first message and the most recent message
         number_of_days = (datetime.strptime(last_message_sent, "%Y-%m-%d") - datetime.strptime(first_message_sent, "%Y-%m-%d")).days
-        if last_message_sent == self.date_from_timestamp(time.time()):
-            last_message_sent = "Today"
+        
+        days_since_first_message = (datetime.today() - datetime.strptime(first_message_sent, "%Y-%m-%d")).days
+        days_since_last_message = (datetime.today() - datetime.strptime(last_message_sent, "%Y-%m-%d")).days
+
+        if first_message_sent == self.date_from_timestamp(time.time()): first_message_sent = "Today"
+        else: "{} days ago, on {}".format(first_message_sent, days_since_first_message)
+        
+        if last_message_sent == self.date_from_timestamp(time.time()): last_message_sent = "Today"
+        else: "{} days ago, on {}".format(last_message_sent, days_since_last_message)
+
         number_of_days = number_of_days if number_of_days > 0 else 1
 
         last_28_days = sorted(days.items())[::-1][:28]
@@ -437,13 +446,13 @@ class Heimdall:
 User:\t\t\t\t\t{}
 Messages:\t\t\t\t{}
 Messages Sent Today:\t\t{}
-First Message Date:\t\t{} days ago, on {}
+First Message Date:\t\t{}
 First Message:\t\t\t{}
 Most Recent Message:\t{}
 Average Messages/Day:\t{}
 Busiest Day:\t\t\t\t{}, with {} messages
 Ranking:\t\t\t\t\t{} of {}.
-{} {}""".format(user, count, messages_today, number_of_days, first_message_sent, earliest[0], last_message_sent, int(count / number_of_days), busiest_day[0], busiest_day[1], position, no_of_posters, all_time_url, last_28_url))
+{} {}""".format(user, count, messages_today, first_message_sent, earliest[0], last_message_sent, int(count / number_of_days), busiest_day[0], busiest_day[1], position, no_of_posters, all_time_url, last_28_url))
 
     def get_room_stats(self):
         """Gets and sends stats for rooms"""
