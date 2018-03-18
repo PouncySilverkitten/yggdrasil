@@ -12,7 +12,7 @@ def main():
     room = args.room
     stealth = args.stealth
 
-    heimdall = Heimdall(room, stealth, True)
+    heimdall = Heimdall(room, stealth=stealth)
 
     def onSIGINT(signum, frame):
         """Handles sigints"""
