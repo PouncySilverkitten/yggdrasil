@@ -501,12 +501,17 @@ Ranking:\t\t\t\t\t{} of {}.
         self.conn.commit()
         message = self.heimdall.parse()
 
+        if message == "Killed":
+            raise KillError
+
         if message['type'] == 'send-event' or message['type'] == 'send-reply':
             self.insert_message(message)
             self.total_messages_all_time += 1
             if self.total_messages_all_time % 25000 == 0:
                 self.heimdall.send("Congratulations on making the {}th post in &{}!".format(self.total_messages_all_time, self.room), message['data']['id'])
 
+            if message['type'] == 'send-reply': return
+            
             self.look_for_room_links(message['data']['content'])
             urls = self.get_urls(message['data']['content'])
             self.heimdall.send(self.get_page_titles(urls),message['data']['id'])
@@ -537,6 +542,12 @@ Ranking:\t\t\t\t\t{} of {}.
             self.connect_to_database()
             while True:
                 self.get_parse_message()
+        except KillError:
+            self.heimdall.log()
+            self.conn.commit()
+            self.conn.close()
+            self.heimdall.disconnect()
+            raise KillError
         except Exception:
             self.heimdall.log()
             self.conn.close()
