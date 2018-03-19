@@ -124,7 +124,7 @@ class Heimdall:
             self.heimdall.connect(True)
 
         self.extractor = URLExtract()
- 
+
         self.show("Connecting to database...", end=' ')
         self.connect_to_database()
         self.show("done\nCreating tables...", end=' ')
@@ -193,7 +193,7 @@ class Heimdall:
                     if reply['type'] == 'log-reply' or reply['type'] == 'send-event':
                         data = []
                         break
- 
+
                 # Logs and single messages are structured differently.
                 if reply['type'] == 'log-reply':
                     # Check if the log-reply is empty, i.e. the last log-reply
@@ -211,7 +211,7 @@ class Heimdall:
                     for message in reply['data']['log']:
                         if not 'parent' in message:
                             message['parent'] = ''
-                        data.append(    (message['content'], message['id'], message['parent'],
+                        data.append((   message['content'], message['id'], message['parent'],
                                         message['sender']['id'], message['sender']['name'],
                                         self.heimdall.normaliseNick(message['sender']['name']),
                                         message['time']))
@@ -223,15 +223,15 @@ class Heimdall:
                         self.c.executemany('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data)
                     except sqlite3.IntegrityError:
                         raise UpdateDone
-            
+ 
                     if len(reply['data']['log']) != 1000:
                         raise UpdateDone
                     else:
                         self.heimdall.send({'type': 'log', 'data': {'n': 1000, 'before': reply['data']['log'][0]['id']}})
-                   
+ 
                 else:
                     self.insert_message(reply)
-        
+ 
             except UpdateDone:
                 self.conn.commit()
                 break
@@ -253,7 +253,7 @@ class Heimdall:
                     message['sender']['id'], message['sender']['name'],
                     self.heimdall.normaliseNick(message['sender']['name']),
                     message['time'])
-       
+ 
         self.c.execute('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data)
         self.conn.commit()
 
@@ -273,10 +273,10 @@ class Heimdall:
 
         Processes the content give, strip all the utls out using regex,
         remove any in the known_urls list, then get the page title for
-        each, truncating it if necessary, and returning a string 
+        each, truncating it if necessary, and returning a string
         containing them all.
         """
-        
+
         urls = self.extractor.find_urls(content)
         known_urls = []
         for url in urls:
@@ -312,7 +312,7 @@ class Heimdall:
                 break
             if result[0] == normnick:
                 return(position)
-            
+
         return("unknown")
 
     def get_user_at_position(self, position):
@@ -474,9 +474,12 @@ Ranking:\t\t\t\t\t{} of {}.
         per_day_last_four_weeks = int(sum([count[1] for count in last_28_days])/28)
         last_28_days.sort(key=operator.itemgetter(1))
         busiest = (datetime.utcfromtimestamp(last_28_days[-1][0]).strftime("%Y-%m-%d"), last_28_days[-1][1])
+        if busiest == datetime.utcfromtimestamp(time.time()).strftime("%Y-%m-%d"):
+            busiest = "Today"
         last_28_days.sort(key=operator.itemgetter(0))
 
         midnight = time.mktime(datetime.combine(date.today(), dttime.min).timetuple())
+        messages_today = 0
         for tup in last_28_days:
             if tup[0] > midnight:
                 messages_today = tup[1]
