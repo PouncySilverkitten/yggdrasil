@@ -48,28 +48,29 @@ class Heimdall:
     produce statistic readouts on demand.
     """
 
-    def __init__(self, room, stealth, verbosity, tests = False):
+    def __init__(self, room, **kwargs):
         self.room = room
-        self.stealth = stealth
-        self.verbose = verbosity
+        self.stealth = kwargs['stealth'] if 'stealth' in kwargs else False
+        self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         if room == 'test':
             self.show("Testing mode enabled...", end='')
             self.tests = True
             self.database = 'test.db'
+            self.show(" done")
         else:
-            self.tests = tests
+            self.tests = kwargs['test'] if 'test' in kwargs else False
             self.database = 'logs.db'
         self.heimdall = karelia.newBot('Heimdall', self.room)
 
         self.files = {'regex': 'regex', 'possible_rooms': 'possible_rooms.json', 'help_text': 'help_text.json', 'block_list': 'block_list.json', 'imgur': 'imgur.json'}
+        self.show("Loading files... ")
         for key in self.files:
-
             self.show("    Loading {}...".format(key), end=' ')
-
             try:
                 if self.files[key].endswith('.json'):
                     with open(self.files[key], 'r') as f:
                         json.loads(f.read())
+                self.show("done.")
             except:
                 self.show('Unable to find file {}, creating (This will need to be manually edited before Heimdall can run successfully)'.format(self.files[key]))
                 with open(self.files[key], 'w') as f:
@@ -81,6 +82,7 @@ class Heimdall:
                 help_text = json.loads(f.read())
                 self.heimdall.stockResponses['shortHelp'] = help_text['short_help']
                 self.heimdall.stockResponses['longHelp'] = help_text['long_help'].format(self.room)
+                self.show("done")
             except Exception:
                 self.heimdall.log()
                 self.show("Error creating help text - see 'Heimdall &{}.log' for details.".format(self.room))
@@ -89,6 +91,7 @@ class Heimdall:
             self.show("Loading url regex...", end=' ')
             try:
                 self.url_regex = f.read()
+                self.show("done")
             except:
                 self.heimdall.log()
                 self.show("Error reading url regex - see 'Heimdall &{}.log' for details.".format(self.room))
@@ -98,23 +101,21 @@ class Heimdall:
             try:
                 self.imgur_key = json.loads(f.read())[0]
                 self.imgur_client = pyimgur.Imgur(self.imgur_key)
+                self.show("done")
             except Exception:
                 self.heimdall.log()
                 self.show("Error reading imgur key - see 'Heimdall &{}.log' for details.".format(self.room))
 
         with open(self.files['block_list'], 'r+') as f:
             try:
+                self.show("Loading blocklists...", end=' ')
                 block_domains = json.loads(f.read())
                 if self.room in block_domains:
                     self.block_domains = block_domains[self.room]
                 else:
-                    self.show("No block list found for this room - cloning from master.")
+                    self.show("using master", end=' ')
                     self.block_domains = block_domains['master'][:]
-                    block_domains[self.room] = self.block_domains[:]
-                    f.seek(0)
-                    f.truncate()
-                    f.write(json.dumps(block_domains))
-
+                self.show("done")
             except:
                 self.heimdall.log()
                 self.show("Error reading block list - see 'Heimdall &{}.log' for details.".format(self.room))
@@ -125,11 +126,15 @@ class Heimdall:
         self.extractor = URLExtract()
 
         self.show("Connecting to database...", end=' ')
-
         self.connect_to_database()
+        self.show("done\nCreating tables...", end=' ')
         self.check_or_create_tables()
+        self.show("done")
 
-        if not self.tests: self.get_room_logs()
+        if not self.tests:
+            self.show("Getting logs...")
+            self.get_room_logs()
+            self.show("Done.")
 
         self.c.execute('''SELECT COUNT(*) FROM {}'''.format(self.room))
         self.total_messages_all_time = self.c.fetchone()[0]
@@ -144,10 +149,10 @@ class Heimdall:
         self.conn = sqlite3.connect(self.database)
         self.c = self.conn.cursor()
 
-    def show(self, text, end=''):
+    def show(self, *args, **kwargs):
         """Only print if self.verbose"""
         if self.verbose:
-            print(text, end)
+            print(*args, **kwargs)
 
     def check_or_create_tables(self):
         """Tries to create tables. If it fails, assume tables already exist."""
@@ -164,7 +169,7 @@ class Heimdall:
                             )'''.format(self.room))
             self.c.execute('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room))
         except sqlite3.OperationalError:
-            self.show(' existing tables found...', end='')
+            self.show(' existing tables found...', ' ')
 
     def get_room_logs(self):
         """Create or update logs of the room.
@@ -258,6 +263,10 @@ class Heimdall:
         one_day = 60*60*24
         tomorrow = int(calendar.timegm(date.fromtimestamp(day).timetuple()) + one_day)
         return(tomorrow)
+
+    def date_from_timestamp(self, timestamp):
+        """Return human-readable date from timestamp"""
+        return(datetime.utcfromtimestamp(timestamp).strftime("%Y-%m-%d"))
 
     def get_urls(self, content):
         """Gets page titles for urls in content
@@ -389,7 +398,6 @@ class Heimdall:
         busiest_day = days_by_busyness[0]
 
         # Calculate when the first message was sent, when the most recent message was sent, and the averate messages per day.
-
         first_message_sent = self.date_from_timestamp(earliest[6])
         last_message_sent = self.date_from_timestamp(latest[6])
 
@@ -411,17 +419,23 @@ class Heimdall:
         title = "Messages by {}, last 28 days".format(user)
         data_x = [day[0] for day in last_28_days]
         data_y = [day[1] for day in last_28_days]
-        last_28_graph = self.graph_data(data_x, data_y, title)
-        last_28_file = self.save_graph(last_28_graph)
-        last_28_url = self.upload_and_delete_graph(last_28_file)
+        if self.tests:
+            last_28_url = "url_goes_here"
+        else:
+            last_28_graph = self.graph_data(data_x, data_y, title)
+            last_28_file = self.save_graph(last_28_graph)
+            last_28_url = self.upload_and_delete_graph(last_28_file)
 
         messages_all_time = days.items()
         title = "Messages by {}, all time".format(user)
         data_x = [day[0] for day in messages_all_time]
         data_y = [day[1] for day in messages_all_time]
-        all_time_graph = self.graph_data(data_x, data_y, title)
-        all_time_file = self.save_graph(all_time_graph)
-        all_time_url = self.upload_and_delete_graph(all_time_file)
+        if self.tests:
+            all_time_url = "url_goes_here"
+        else:
+            all_time_graph = self.graph_data(data_x, data_y, title)
+            all_time_file = self.save_graph(all_time_graph)
+            all_time_url = self.upload_and_delete_graph(all_time_file)
 
         # Get requester's position.
         position = self.get_position(normnick)
@@ -460,12 +474,10 @@ Ranking:\t\t\t\t\t{} of {}.
         per_day_last_four_weeks = int(sum([count[1] for count in last_28_days])/28)
         last_28_days.sort(key=operator.itemgetter(1))
         busiest = (datetime.utcfromtimestamp(last_28_days[-1][0]).strftime("%Y-%m-%d"), last_28_days[-1][1])
-        if busiest == datetime.utcfromtimestamp(time.time()).strftime("%Y-%m-%d"):
-            busiest = "Today"
         last_28_days.sort(key=operator.itemgetter(0))
 
         midnight = time.mktime(datetime.combine(date.today(), dttime.min).timetuple())
-        messages_today = 0
+        messages_today = 0 
         for tup in last_28_days:
             if tup[0] > midnight:
                 messages_today = tup[1]
