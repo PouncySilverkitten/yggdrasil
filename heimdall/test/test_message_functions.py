@@ -50,20 +50,6 @@ class TestBasics(unittest.TestCase):
     def test_none(self):
         assert self.heimdall.insert_message(self.message_with_none) == None
 
-    def test_user_stats(self):
-        recvd = [line.replace("\t","") for line in self.heimdall.get_user_stats('Testing Heimdall').split('\n')[1:]]
-        expcd = [   "User:Testing Heimdall",
-                    "Messages:4",
-                    "Messages Sent Today:4",
-                    "First Message Date:Today",
-                    "First Message:test message",
-                    "Most Recent Message:Today",
-                    "Average Messages/Day:4",
-                    "Busiest Day:2018-03-18, with 4 messages",
-                    "Ranking:23 of 29.",
-                    "url_goes_here url_goes_here"]
-        for i in range(len(expcd)):
-            assert recvd[i] == expcd[i]
-
+    def tearDown(self):
         self.heimdall.c.execute('''DELETE FROM test WHERE normname = ?''',('testingheimdall',))
         self.heimdall.conn.commit()
