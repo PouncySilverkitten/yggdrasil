@@ -1,0 +1,49 @@
+import json
+import unittest
+from hermothr import Hermothr
+
+class TestReadWhoToNotify(unittest.TestCase):
+    def setUp(self):
+        self.hermothr = Hermothr('test_data', test=True)
+        self.packet = { 'type': 'send-event',
+                        'data': {   'id': 'asdfg',
+                                    'content': 'This is a message.',
+                                    'sender':   {   'id':      'agent:   ',
+                                                    'name':    'Hermothr'}}} 
+
+    def test_single_name(self):
+        assert self.hermothr.read_who_to_notify('!herm @PouncySilverkitten hi!'.split()) == ["PouncySilverkitten"]
+        assert self.hermothr.read_who_to_notify('!hermothr @Xyzzy hello'.split()) == ['Xyzzy']
+
+    def test_multiple_names(self):
+        assert self.hermothr.read_who_to_notify('!herm @PouncySilverkitten @herm hi!'.split()).sort() == ["PouncySilverkitten","herm"].sort()
+        assert self.hermothr.read_who_to_notify('!hermothr @Xyzzy @Stormageddon @greenie Hey!'.split()).sort() == ["Xyzzy","Stormageddon","greenie"].sort()
+
+    def test_groups(self):
+        assert self.hermothr.read_who_to_notify("!herm *tradewinds any progress?".split()).sort() == ['Nuvanda', 'totally�����', 'DoctorNumberFour', 'Xyzzy', 'ㅇㅈㅇ', 'K', 'Garmy'].sort()
+        assert self.hermothr.read_who_to_notify("!herm *linux *m4k hi hi.".split()).sort() == ["Garmy", "Xyzzy", "TauNeutrin0"].sort()
+
+    def test_no_name(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm PouncySilverkitten hi!"
+        assert self.hermothr.parse(packet) == "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
+    def test_no_ident(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm yeah sure, no bother"
+        assert self.hermothr.parse(packet) == "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
+
+    def test_no_group(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm *IGT link.com"
+        assert self.hermothr.parse(packet) == "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
+
+    def test_only_to_sender(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm @Hermothr hi!"
+        assert self.hermothr.parse(packet) == "/me won't tell you what you already know"
+
+    def test_acceptable_message(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm @PouncySilverkitten hi!"
+        assert self.hermothr.parse(packet) == "/me will notify PouncySilverkitten."
+
