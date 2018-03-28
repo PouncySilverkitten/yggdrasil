@@ -52,6 +52,8 @@ class Heimdall:
         self.room = room
         self.stealth = kwargs['stealth'] if 'stealth' in kwargs else False
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
+        self.force_new_logs = kwargs['new_logs'] if 'new_logs' in kwargs else False
+
         if room == 'test':
             self.show("Testing mode enabled...", end='')
             self.tests = True
@@ -127,6 +129,14 @@ class Heimdall:
 
         self.show("Connecting to database...", end=' ')
         self.connect_to_database()
+        if self.force_new_logs:
+            self.show("done\nDropping table...", end=' ')
+            try:
+                self.c.execute('''DROP INDEX messageID''')
+            except:
+                self.heimdall.log()
+            self.c.execute('''DROP TABLE IF EXISTS {}'''.format(self.room))
+            self.conn.commit()
         self.show("done\nCreating tables...", end=' ')
         self.check_or_create_tables()
         self.show("done")
@@ -169,6 +179,7 @@ class Heimdall:
                             )'''.format(self.room))
             self.c.execute('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room))
         except sqlite3.OperationalError:
+            self.heimdall.log()
             self.show(' existing tables found...', ' ')
 
     def get_room_logs(self):
