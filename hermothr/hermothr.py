@@ -77,7 +77,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
 
     def list_groups(self):
         groups_as_string = ""
-        for group in self.groups:
+        for group in self.groups.keys():
             groups_as_string += "{}: ".format(group)
             groups_as_string += ", ".join(self.groups[group])
             groups_as_string += "\n"
@@ -107,7 +107,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         return(for_sender)
 
     def time_since(self, before):
-        now = datetime.datetime.now()
+        now = datetime.datetime.utcnow()
         then = datetime.datetime.utcfromtimestamp(before)
 
         delta = now - then
@@ -130,120 +130,6 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                 return True
         return False
 
-    def main(self):
-        """
-        main acts as an input redirector, calling functions as required.
-    
-        Currently, `!notnotify @user` and `!notnotify *group` are supported, as well as
-        `!group *group @user`, `!ungroup *group @user`, and `!reply message`.
-    
-        - `!notnotify` will add a notify for user or group.
-        - `!reply`, sent as the child of a notnotification, will send that reply to
-        the original sender.
-        - `!group` adds the specified user(s) to the specified group
-        - `!ungroup` removes the specified user(s) from the specified groups
-        """
-    
-        message = ""
-        while True:
-            try:
-                self.hermothr.connect()
-                self.generate_not_commands()
-
-                while True:
-                    self.read_messages()
-                    self.read_groups()
-
-                    packet = hermothr.parse()
-                    if packet == 'Killed':
-                        self.write_out_messages()
-                        self.write_out_groups()
-                        sys.exit()
-                    
-                    messages_for_sender = self.check_for_messages(packet)
-                    for message in messages_for_sender:
-                        self.hermothr.send(message, packet['data']['id'])
-                    self.hermothr.send(self.parse(packet), packet['data']['id'])
-             
-            except Exception:
-                hermothr.log()
-                write_out_messages(messages)
-                write_out_groups(groups)
-                time.sleep(2)
-
-    def parse(self, packet):
-        if packet['type'] == 'join-event' or packet['type'] == 'part-event':
-            if packet['data']['name'] == 'NotBot' and packet['data']['id'].startswith('bot:'):
-                self.generate_not_commands()
-
-        elif packet['type'] == 'send-event' and not ('bot:' in packet['data']['sender']['id'] and 'Heimdall' != packet['data']['sender']['name']):
-            # Handle a !(not)notify
-            split_content = packet['data']['content'].split()
-            if split_content[0] in self.not_commands and len(split_content) > 2:
-                # Returns a list of recipients
-                recipients = self.read_who_to_notify(split_content)
-                if recipients == None:
-                    return "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
-                else:
-                    # Returns the message body
-                    sane_message = split_content[len(recipients)+1]
-    
-                    # Indicate in the message body that the message was sent to a group
-                    sender_name = self.bland(packet['data']['sender']['name'])
-
-                    # Get a list of groups in the message
-                    groups = self.list_groups()
-                    if len(groups) > 0:
-                        group_flag = " to *{} ".format(', '.join(groups))
-                    
-                    if packet['data']['sender']['name'] in recipients: recipients.remove(sender_name)
-    
-                    if len(recipients) == 0: return("/me won't tell you what you already know")
-
-                    names_as_string = self.format_recipients(recipients)
-
-                    # Used to get a list for the response - for group and multi-nick notifies
-                    for name in recipients:
-                        write_packet = {"text": sane_message,
-                                        "sender": sender_name, 
-                                        "time": time.time(),
-                                        "room": self.room,
-                                        "group": group_flag,
-                                        "recipient": name,
-                                        "to": self.hermothr.normaliseNick(name)}
-                        self.write_message(write_packet)
-
-                    return("/me will notify {}.".format(names_as_string))
-                
-            elif split_content[0] == "!reply" and 'parent' in packet['data'] and len(split_content) > 1:
-                parent = packet['data']['parent']
-                if self.check_parent(parent):
-                    recipient = message_ids[parent]
-                    sane_message = ' '.join(split_content[1:])
-                    
-                    write_packet = {"text": sane_message,
-                                    "sender": bland(packet['data']['sender']['name']),
-                                    'time': time.time(),
-                                    'room': self.room,
-                                    'group': group_flag,
-                                    'recipient': recipient}
-                    
-                    self.write_message(write_packet)
-                    return("Will do.")
-    
-            elif split_content[0] == '!group':
-                self.add_to_group(packet['data'])
-            elif split_content[0] == '!ungroup':
-                self.remove_from_group(packet['data'])
-            elif len(split_content) == 1 and split_content[0] == '!notgrouplist':
-                return(self.list_groups())
-            elif split_content[0] == '!notgrouplist':
-                group_name = split_content[1][1:]
-                if group_name in self.groups:
-                    return('\n'.join(self.groups[group_name]))
-                else:
-                    return("Group not found. !notgrouplist to view.")
-    
     def check_for_messages(self, packet):
         self.read_messages()
         sender = self.hermothr.normaliseNick(packet['data']['sender']['name'])
@@ -269,7 +155,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         self.write_out_messages()
 
     def check_parent(self, parent):
-        if parent in self.message_ids:
+        if parent in self.message_ids.keys():
             return True
         return False
 
@@ -282,11 +168,10 @@ Use !hermgrouplist to see all the groups and to see their occupants.
             f.write(json.dumps(self.messages))
     
     
-    def write_out_groups(self, groups):
+    def write_out_groups(self):
         """Saves groups to file"""
         with open(self.groups_file, 'w') as f:
-            f.write(json.dumps(groups))
-    
+            f.write(json.dumps(self.groups))
     
     def read_who_to_notify(self, split_content):
         """
@@ -297,7 +182,6 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         names = list()
         words = list()
         message = split_content[1:]
-        self.read_groups()
         for word in message:
             if word[0] == "@":
                 names.append(word[1:])
@@ -350,6 +234,20 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                 del groups[group_name]
             with open('hermothrgroups.json', 'w') as f:
                 f.write(json.dumps(groups))
+
+    def list_groups_in_recipients(self, split_content):
+        groups_in_recipients = list()
+        for word in split_content[1:]:
+            if word[0] not in ['@','*']:
+                return []
+            elif word[0] == '@':
+                continue
+            else:
+                if word[1:] in self.groups.keys():
+                    groups_in_recipients.append(word[1:])
+
+        return groups_in_recipients
+
     
     def remove_names(self, message):
         """Removes the names of the notnotifies from the text of a message"""
@@ -363,4 +261,131 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         for m in mess:
             less_of_a_mess += m + ' '
         return(less_of_a_mess)
+    
+    def parse(self, packet):
+        if packet['type'] == 'join-event' or packet['type'] == 'part-event':
+            if packet['data']['name'] == 'NotBot' and packet['data']['id'].startswith('bot:'):
+                self.generate_not_commands()
 
+        elif packet['type'] == 'send-reply':
+            packet_id = packet['data']['id']
+            packet_name = packet['data']['content'].split()[0][1:]
+            self.message_ids[packet_id] = packet_name
+
+        elif packet['type'] == 'send-event' and not ('bot:' in packet['data']['sender']['id'] and 'Heimdall' != packet['data']['sender']['name']):
+            # Handle a !(not)notify
+            split_content = packet['data']['content'].split()
+            if split_content[0] in self.not_commands and len(split_content) > 2:
+                # Returns a list of recipients
+                recipients = self.read_who_to_notify(split_content)
+                if recipients == None:
+                    return "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
+                else:
+                    # Returns the message body
+                    for i in range(len(split_content)):
+                        if split_content[i][0] not in ['@','*']:
+                            sane_message = ' '.join(split_content[i:])
+                            break
+    
+                    # Indicate in the message body that the message was sent to a group
+                    sender_name = self.bland(packet['data']['sender']['name'])
+
+                    # Get a list of groups in the message
+                    groups = self.list_groups_in_recipients(split_content)
+                    group_flag = ""
+                    if len(groups) > 0:
+                        group_flag = " to *{} ".format(', '.join(groups))
+                    
+                    if packet['data']['sender']['name'] in recipients: recipients.remove(sender_name)
+    
+                    if len(recipients) == 0: return("/me won't tell you what you already know")
+
+                    recipients.sort()
+                    names_as_string = self.format_recipients(recipients)
+
+                    # Used to get a list for the response - for group and multi-nick notifies
+                    for name in recipients:
+                        write_packet = {"text": sane_message,
+                                        "sender": sender_name, 
+                                        "time": time.time(),
+                                        "room": self.room,
+                                        "group": group_flag,
+                                        "recipient": name,
+                                        "to": self.hermothr.normaliseNick(name)}
+                        self.write_message(write_packet)
+
+                    return("/me will notify {}.".format(names_as_string))
+                
+            elif split_content[0] == "!reply" and 'parent' in packet['data'] and len(split_content) > 1:
+                parent = packet['data']['parent']
+                if self.check_parent(parent):
+                    recipient = self.message_ids[parent]
+                    sane_message = ' '.join(split_content[1:])
+                    
+                    write_packet = {"text": sane_message,
+                                    "sender": bland(packet['data']['sender']['name']),
+                                    'time': time.time(),
+                                    'room': self.room,
+                                    'group': group_flag,
+                                    'recipient': recipient}
+                    
+                    self.write_message(write_packet)
+                    return("Will do.")
+    
+            elif split_content[0] == '!group':
+                self.add_to_group(packet['data'])
+            elif split_content[0] == '!ungroup':
+                self.remove_from_group(packet['data'])
+            elif len(split_content) == 1 and split_content[0] == '!notgrouplist':
+                return(self.list_groups())
+            elif split_content[0] == '!notgrouplist':
+                group_name = split_content[1][1:]
+                if group_name in self.groups:
+                    return('\n'.join(self.groups[group_name]))
+                else:
+                    return("Group not found. !notgrouplist to view.")
+            
+
+    def main(self):
+        """
+        main acts as an input redirector, calling functions as required.
+    
+        Currently, `!notnotify @user` and `!notnotify *group` are supported, as well as
+        `!group *group @user`, `!ungroup *group @user`, and `!reply message`.
+    
+        - `!notnotify` will add a notify for user or group.
+        - `!reply`, sent as the child of a notnotification, will send that reply to
+        the original sender.
+        - `!group` adds the specified user(s) to the specified group
+        - `!ungroup` removes the specified user(s) from the specified groups
+        """
+    
+        message = ""
+        while True:
+            try:
+                self.hermothr.connect()
+                self.generate_not_commands()
+
+                while True:
+                    self.read_messages()
+                    self.read_groups()
+
+                    packet = self.hermothr.parse()
+                    if packet == 'Killed':
+                        self.write_out_messages()
+                        self.write_out_groups()
+                        sys.exit()
+                    
+                    if packet['type'] == 'send-event':
+                        messages_for_sender = self.check_for_messages(packet)
+                        for message in messages_for_sender:
+                            self.hermothr.send(message, packet['data']['id'])
+                    reply = self.parse(packet)
+                    if reply is not None:
+                        self.hermothr.send(reply, packet['data']['id'])
+
+            except Exception:
+                self.hermothr.log()
+                self.write_out_messages()
+                self.write_out_groups()
+                time.sleep(2)

@@ -30,3 +30,7 @@ class TestBasics(unittest.TestCase):
         shutil.copyfile('test_groups.json.backup', 'test_groups.json')
         os.remove('test_messages.json.backup')
         os.remove('test_groups.json.backup')
+
+    def test_read_write_messages(self):
+        self.hermothr.read_messages()
+        self.hermothr.parse
