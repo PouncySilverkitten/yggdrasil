@@ -1,3 +1,4 @@
+import os
 import unittest
 from hermothr import Hermothr
 
@@ -22,10 +23,11 @@ class TestGroups(unittest.TestCase):
                                                     'name': 'ImAUser'}}}
 
     def tearDown(self):
-        self.hermothr.groups_file = "hermothr_groups.json"
-        self.hermothr.read_groups()
-        self.hermothr.groups_file = "test_groups.json"
-        self.hermothr.write_groups()
+        if os.path.exists('hermothr_groups.json'):
+            self.hermothr.groups_file = "hermothr_groups.json"
+            self.hermothr.read_groups()
+            self.hermothr.groups_file = "test_groups.json"
+            self.hermothr.write_groups()
 
     def test_grouplist(self):
         packet = self.packet
