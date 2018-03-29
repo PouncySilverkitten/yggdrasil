@@ -30,51 +30,59 @@ class Hermothr:
         self.groups_file = "test_groups.json" if self.test else "hermothr_groups.json"
         try:
             self.read_messages()
-        except:
+        except FileNotFoundError:
             with open(self.messages_file, 'w') as f:
                 f.write('{}')
         try:
             self.read_groups()
-        except:
+        except FileNotFoundError:
             with open(self.groups_file, 'w') as f:
                 f.write('{}')
 
     def gen_help_messages(self):
+        """Produces help messages conforming to the templates below"""
         self.long_help_template = """A replacement for the much-missed @NotBot.
 Accepted commands are {} (!herm will be used below, but any in the list can be substituted.)
-!herm @PERSON (@PERSON2, @PERSON3...) MESSAGE
-!herm *GROUP MESSAGE
-Use !reply MESSAGE as the child of a notification to reply to the sender:
+!herm @person (@person_two, @person_three, *group_one, *group_two...) message
+    Any combination of nicks and groups can be used.
+Use !reply as the child of a notification to reply to the sender:
 [Pouncy Silverkitten] checks for mail
     [Hermóðr] <Policy Sisterwritten 08:37:27 ago in &xkcd> Hello :-)
         [Pouncy Silverkitten] !reply Hi!
             [Hermóðr] Will do.
-If replying to a group message, a !reply command will send the reply to the sender of the original message, not the group.
-Use !group and !ungroup to add yourself (or anyone else) to a group that can send and receive messages just like a person.
-!group *GROUP @PERSON (@PERSON2, @PERSON3...)
-!ungroup *GROUP @PERSON (@PERSON2, @PERSON3...)
-Use !hermgrouplist to see all the groups and to see their occupants.
+    Nota Bene: any user can !reply to a delivered message. The reply, when delivered, will reflect the nick of the user who replied.
+If replying to a message with more than one recipient, a !reply command will send the reply to the sender of the original message, not every recipient.
+Use !group and !ungroup to add yourself (or anyone else) to a group that can receive messages just like a person.
+!group *group @person (@person_two, @person_three...)
+!ungroup *group @person (@person_two, @person_three...)
+    Nota Bene: @Hermóðr also obeys the !tgroup and !tungroup commands, so long as they employ the 'basic' syntax described above. It will obey them silently - i.e., it will not reply to them.
+
+Use !grouplist to see all the groups and their members, or !grouplist *group to list the members of a specific group.
     
 @Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project."""
-        self.short_help_template = 'Use {} to send messages to other people who are currently unavailable.'
+        self.short_help_template = 'Use {} to send messages to people who are currently unavailable.'
         self.hermothr.stockResponses['longHelp'] = self.long_help_template.format(', '.join(self.not_commands))
         self.hermothr.stockResponses['shortHelp'] = self.short_help_template.format(', '.join(self.not_commands))
 
     def read_messages(self):
+        """Loads messages from file"""
         with open(self.messages_file, 'r') as f:
             self.messages = json.loads(f.read())
 
     def read_groups(self):
+        """Loads groups from file"""
         with open(self.groups_file, 'r') as f:
             self.groups = json.loads(f.read())
 
     def list_groups(self):
+        """Produces a string in the form group_name: members"""
         groups_as_string = ""
         for group in self.groups.keys():
             groups_as_string += "{}: {}\n".format(group, ', '.join(self.groups[group]))
         return groups_as_string
 
     def format_recipients(self, names):
+        """Produces a nice list of recipients in human-pleasing format"""
         names_as_string = ""
         for i in range(len(names)):
             if i == len(names) - 1 and not len(names) == 1:
@@ -88,6 +96,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         return names_as_string
 
     def check_messages_for_sender(self, sender):
+        """Returns a list of messages for a given sender"""
         self.read_messages()
         if sender in self.messages:
             for_sender = self.messages[sender]
@@ -98,6 +107,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         return for_sender
 
     def time_since(self, before):
+        """Uses deltas to produce a human-readable description of a time period"""
         now = datetime.datetime.utcnow()
         then = datetime.datetime.utcfromtimestamp(before)
 
@@ -106,6 +116,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         return delta_string
 
     def generate_not_commands(self):
+        """Adds or removes `!notify` from the list of not_commands"""
         self.hermothr.send({'type': 'who'})
         while True:
             message = self.hermothr.parse()
@@ -117,12 +128,14 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         self.gen_help_messages()
 
     def check_for_notbot(self, listing):
+        """Returns True if @NotBot is present, else returns False"""
         for item in listing:
             if 'bot:' in item['id'] and item['name'] == 'NotBot':
                 return True
         return False
 
     def check_for_messages(self, packet):
+        """Produces a formatted, usable list of messages for a nick"""
         self.read_messages()
         sender = self.hermothr.normaliseNick(packet['data']['sender']['name'])
         messages_for_sender = self.check_messages_for_sender(sender)
@@ -137,6 +150,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         return messages
 
     def write_message(self, write_packet):
+        """Adds a message to the list of messages"""
         self.read_messages()
         name = write_packet["to"]
         if name in self.messages:
@@ -146,11 +160,13 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         self.write_messages()
 
     def check_parent(self, parent):
+        """Checks if a message_id belongs to a message sent by the bot"""
         if parent in self.message_ids.keys():
             return True
         return False
 
     def bland(self, name):
+        """Strips whitespace"""
         return re.sub(r'\s+', '', name)
 
     def write_messages(self):
@@ -269,6 +285,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                 return ' '.join(split_content), ', '.join(recipients)
 
     def parse(self, packet):
+        """Handles all the commands supported"""
         if packet['type'] == 'join-event' or packet['type'] == 'part-event':
             if packet['data']['name'] == 'NotBot' and packet['data']['id'].startswith('bot:'):
                 self.generate_not_commands()
