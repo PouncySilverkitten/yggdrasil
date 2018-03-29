@@ -21,7 +21,7 @@ class TestReadWhoToNotify(unittest.TestCase):
 
     def test_groups(self):
         assert self.hermothr.read_who_to_notify("!herm *tradewinds any progress?".split()).sort() == ['Nuvanda', 'totally�����', 'DoctorNumberFour', 'Xyzzy', 'ㅇㅈㅇ', 'K', 'Garmy'].sort()
-        assert self.hermothr.read_who_to_notify("!herm *linux *m4k hi hi.".split()).sort() == ["Garmy", "Xyzzy", "TauNeutrin0"].sort()
+        assert self.hermothr.read_who_to_notify("!herm *GroupOne *GroupTwo hi hi.".split()).sort() == ["UserOne", "UserTwo", "UserThree", "UserFour", "PouncySilverkitten", "Hermothr", "Heimdall", "ThisUserDoesnaeExist"].sort()
 
     def test_no_name(self):
         packet = self.packet
