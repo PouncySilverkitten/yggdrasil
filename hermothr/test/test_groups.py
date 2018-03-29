@@ -6,14 +6,22 @@ class TestGroups(unittest.TestCase):
 
     def setUp(self):
         self.hermothr = Hermothr('test_data', test=True)
-        self.hermothr.groups = {    'GroupOne': [  "PouncySilverkitten",
-                                                    "Hermothr",
-                                                    "Heimdall",
-                                                    "ThisUserDoesnaeExist"],
-                                    'GroupTwo': [  "UserOne",
-                                                    "UserTwo",
-                                                    "UserThree",
-                                                    "UserFour"]}
+        self.hermothr.groups = {    'GroupOne':     [   "PouncySilverkitten",
+                                                        "Hermothr",
+                                                        "Heimdall",
+                                                        "ThisUserDoesnaeExist"],
+                                    'GroupTwo':     [   "UserOne",
+                                                        "UserTwo",
+                                                        "UserThree",
+                                                        "UserFour"],
+                                    'tradewinds':   [   "Nuvanda",
+                                                        "totally�����",
+                                                        "DoctorNumberFour",
+                                                        "Xyzzy",
+                                                        "ㅇㅈㅇ",
+                                                        "K",
+                                                        "Garmy"],
+                                    }
 
         self.hermothr.write_groups()
         self.hermothr.not_commands.append("!notify")
@@ -32,7 +40,7 @@ class TestGroups(unittest.TestCase):
     def test_grouplist(self):
         packet = self.packet
         packet['data']['content'] = '!grouplist'
-        assert self.hermothr.parse(packet) == ('GroupOne: PouncySilverkitten, Hermothr, Heimdall, ThisUserDoesnaeExist\nGroupTwo: UserOne, UserTwo, UserThree, UserFour\n') 
+        assert self.hermothr.parse(packet) == 'GroupOne: PouncySilverkitten, Hermothr, Heimdall, ThisUserDoesnaeExist\nGroupTwo: UserOne, UserTwo, UserThree, UserFour\ntradewinds: Nuvanda, totally�����, DoctorNumberFour, Xyzzy, ㅇㅈㅇ, K, Garmy\n'
 
     def test_list_bad_group(self):
         packet = self.packet
@@ -110,7 +118,7 @@ class TestGroups(unittest.TestCase):
         packet = self.packet
         packet['data']['content'] = "!ungroup *GroupTwo @UserOne @UserTwo @UserThree @UserFour"
         self.hermothr.parse(packet)
-        assert self.hermothr.groups == {"GroupOne": ['PouncySilverkitten', 'Hermothr', 'Heimdall', 'ThisUserDoesnaeExist']}
+        assert self.hermothr.groups == {'GroupOne': ['PouncySilverkitten', 'Hermothr', 'Heimdall', 'ThisUserDoesnaeExist'], 'tradewinds': ['Nuvanda', 'totally�����', 'DoctorNumberFour', 'Xyzzy', 'ㅇㅈㅇ', 'K', 'Garmy']}
 
     def test_ungroup_no_user(self):
         packet = self.packet
