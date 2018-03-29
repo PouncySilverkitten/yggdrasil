@@ -31,10 +31,10 @@ class Hermothr:
         self.messages = {}
         self.groups = {}
 
-        self.message_body_template = "<{}{} {} ago in &{}> {}"
+        self.message_body_template = "<{} to {} {} ago in &{}> {}"
 
-        self.messages_file = "test_messages.json" if self.test else "hermothrmessages.json"
-        self.groups_file = "test_groups.json" if self.test else "hermothrgroups.json"
+        self.messages_file = "test_messages.json" if self.test else "hermothr_messages.json"
+        self.groups_file = "test_groups.json" if self.test else "hermothr_groups.json"
         try:
             self.read_messages()
         except:
@@ -78,9 +78,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
     def list_groups(self):
         groups_as_string = ""
         for group in self.groups.keys():
-            groups_as_string += "{}: ".format(group)
-            groups_as_string += ", ".join(self.groups[group])
-            groups_as_string += "\n"
+            groups_as_string += "{}: {}\n".format(group, ', '.join(self.groups[group]))
         return groups_as_string
 
     def format_recipients(self, names):
@@ -102,8 +100,8 @@ Use !hermgrouplist to see all the groups and to see their occupants.
             for_sender = self.messages[sender]
         else:
             return([])
-        self.messages[sender] = []
-        self.write_out_messages()
+        del self.messages[sender]
+        self.write_messages()
         return(for_sender)
 
     def time_since(self, before):
@@ -136,23 +134,22 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         messages_for_sender = self.check_messages_for_sender(sender)
         messages = []
         for message in messages_for_sender:
-            messages.append(self.message_body_template.format(  message['recipient'],
-                                                                message['group'],
+            messages.append(self.message_body_template.format(  message['sender'],
+                                                                message['all_recipients'],
                                                                 self.time_since(message['time']),
                                                                 message['room'],
                                                                 message['text']))
 
         return(messages)
     
-        
     def write_message(self, write_packet):
-        messages = self.read_messages()
-        name = self.hermothr.normaliseNick(write_packet['recipient'])
+        self.read_messages()
+        name = write_packet["to"]
         if name in self.messages:
             self.messages[name].append(write_packet)
         else:
             self.messages[name] = [write_packet]
-        self.write_out_messages()
+        self.write_messages()
 
     def check_parent(self, parent):
         if parent in self.message_ids.keys():
@@ -162,13 +159,12 @@ Use !hermgrouplist to see all the groups and to see their occupants.
     def bland(self, name):
         return re.sub(r'\s+', '', name)
     
-    def write_out_messages(self):
+    def write_messages(self):
         """Saves messages to file"""
         with open(self.messages_file, 'w') as f:
             f.write(json.dumps(self.messages))
     
-    
-    def write_out_groups(self):
+    def write_groups(self):
         """Saves groups to file"""
         with open(self.groups_file, 'w') as f:
             f.write(json.dumps(self.groups))
@@ -186,35 +182,31 @@ Use !hermgrouplist to see all the groups and to see their occupants.
             if word[0] == "@":
                 names.append(word[1:])
             elif word[0] == '*':
-                try:
+                if word[1:] in self.groups:
                     names += self.groups[word[1:]]
-                except KeyError:
-                    pass
-        if len(names) > 0:
-            return list(set(names))
-        else:
-            return(None)
+            elif len(names) > 0:
+                return list(set(names))
+            else:
+                return None
     
     def add_to_group(self, data):
         """Handles !group commands"""
-        global groups
         message = data['content'].replace('\n', ' ')
         words = message.split(' ')
         if words[1][0] == '*':
             group_name = words[1][1:]
-            if group_name not in groups:
-                groups[group_name] = []
+            if group_name not in self.groups:
+                self.groups[group_name] = []
             words.remove(words[0])
             words.remove(words[0])
             for word in words:
                 word = word.replace('\n', ' ')
-                if len(word) > 2 and word[0] == "@" and not word[1:] in groups[group_name]:
-                    groups[group_name].append(word[1:])
+                if len(word) > 2 and word[0] == "@" and not word[1:] in self.groups[group_name]:
+                    self.groups[group_name].append(word[1:])
                     if "!notify" in not_command:
                         hermothr.send("Adding {} to group {}".format(word,group_name),data['id'])
-            with open('hermothrgroups.json', 'w') as f:
-                f.write(json.dumps(groups))
-    
+        
+        self.write_groups() 
     
     def remove_from_group(self, data):
         """Handles !ungroup commands"""
@@ -235,39 +227,24 @@ Use !hermgrouplist to see all the groups and to see their occupants.
             with open('hermothrgroups.json', 'w') as f:
                 f.write(json.dumps(groups))
 
-    def list_groups_in_recipients(self, split_content):
-        groups_in_recipients = list()
-        for word in split_content[1:]:
-            if word[0] not in ['@','*']:
-                return []
-            elif word[0] == '@':
-                continue
-            else:
-                if word[1:] in self.groups.keys():
-                    groups_in_recipients.append(word[1:])
-
-        return groups_in_recipients
-
-    
-    def remove_names(self, message):
-        """Removes the names of the notnotifies from the text of a message"""
-        mess = message.split(' ')[1:]
+    def remove_names(self, split_content):
+        """Removes the names of the recipients from the text of a message"""
+        recipients = []
         while True:
-            if mess[0][0] == '*' or mess[0][0] == "@":
-                mess.remove(mess[0])
+            if len(split_content) > 0 and split_content[0][0] in ['*', '@']:
+                if split_content[0][0] == '@':
+                    split_content[0] = split_content[0][1:]
+                recipients.append(split_content[0])
+                del split_content[0]
             else:
-                break
-        less_of_a_mess = ''
-        for m in mess:
-            less_of_a_mess += m + ' '
-        return(less_of_a_mess)
-    
+                return ' '.join(split_content), ', '.join(recipients)
+
     def parse(self, packet):
         if packet['type'] == 'join-event' or packet['type'] == 'part-event':
             if packet['data']['name'] == 'NotBot' and packet['data']['id'].startswith('bot:'):
                 self.generate_not_commands()
 
-        elif packet['type'] == 'send-reply':
+        elif packet['type'] == 'send-reply' and packet['data']['content'][0] == "<":
             packet_id = packet['data']['id']
             packet_name = packet['data']['content'].split()[0][1:]
             self.message_ids[packet_id] = packet_name
@@ -282,24 +259,15 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                     return "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
                 else:
                     # Returns the message body
-                    for i in range(len(split_content)):
-                        if split_content[i][0] not in ['@','*']:
-                            sane_message = ' '.join(split_content[i:])
-                            break
-    
-                    # Indicate in the message body that the message was sent to a group
-                    sender_name = self.bland(packet['data']['sender']['name'])
-
-                    # Get a list of groups in the message
-                    groups = self.list_groups_in_recipients(split_content)
-                    group_flag = ""
-                    if len(groups) > 0:
-                        group_flag = " to *{} ".format(', '.join(groups))
+                    sane_message, all_recipients = self.remove_names(split_content[1:])
                     
+                    if len(sane_message) == 0 or sane_message.isspace():   
+                        return("/me can't see a message there")
+
+                    sender_name = self.bland(packet['data']['sender']['name'])
                     if packet['data']['sender']['name'] in recipients: recipients.remove(sender_name)
     
                     if len(recipients) == 0: return("/me won't tell you what you already know")
-
                     recipients.sort()
                     names_as_string = self.format_recipients(recipients)
 
@@ -309,8 +277,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                                         "sender": sender_name, 
                                         "time": time.time(),
                                         "room": self.room,
-                                        "group": group_flag,
-                                        "recipient": name,
+                                        "all_recipients": all_recipients,
                                         "to": self.hermothr.normaliseNick(name)}
                         self.write_message(write_packet)
 
@@ -323,27 +290,27 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                     sane_message = ' '.join(split_content[1:])
                     
                     write_packet = {"text": sane_message,
-                                    "sender": bland(packet['data']['sender']['name']),
+                                    "sender": self.bland(packet['data']['sender']['name']),
                                     'time': time.time(),
                                     'room': self.room,
-                                    'group': group_flag,
-                                    'recipient': recipient}
+                                    'all_recipients': 'you',
+                                    'to': self.hermothr.normaliseNick(recipient)}
                     
                     self.write_message(write_packet)
                     return("Will do.")
     
-            elif split_content[0] == '!group':
+            elif split_content[0] in ["!group", "!tgroup"] and len(split_content) > 1:
                 self.add_to_group(packet['data'])
-            elif split_content[0] == '!ungroup':
+            elif split_content[0] == ["!ungroup", "!tungroup"] and len(split_content) > 1:
                 self.remove_from_group(packet['data'])
-            elif len(split_content) == 1 and split_content[0] == '!notgrouplist':
+            elif len(split_content) == 1 and split_content[0] == '!grouplist':
                 return(self.list_groups())
-            elif split_content[0] == '!notgrouplist':
+            elif split_content[0] == '!grouplist':
                 group_name = split_content[1][1:]
                 if group_name in self.groups:
                     return('\n'.join(self.groups[group_name]))
                 else:
-                    return("Group not found. !notgrouplist to view.")
+                    return("Group not found. !grouplist to view.")
             
 
     def main(self):
@@ -372,8 +339,8 @@ Use !hermgrouplist to see all the groups and to see their occupants.
 
                     packet = self.hermothr.parse()
                     if packet == 'Killed':
-                        self.write_out_messages()
-                        self.write_out_groups()
+                        self.write_messages()
+                        self.write_groups()
                         sys.exit()
                     
                     if packet['type'] == 'send-event':
@@ -386,6 +353,6 @@ Use !hermgrouplist to see all the groups and to see their occupants.
 
             except Exception:
                 self.hermothr.log()
-                self.write_out_messages()
-                self.write_out_groups()
+                self.write_messages()
+                self.write_groups()
                 time.sleep(2)

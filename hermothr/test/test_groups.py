@@ -14,16 +14,16 @@ class TestGroups(unittest.TestCase):
                                                     "UserThree",
                                                     "UserFour"]}
 
-        self.packet = {  'type': 'send-event',
-                    'data': {   'id': 'asdfg',
-                                'sender':   {   'id':      'agent:   ',
-                                                'name':    'ImAUser'}}}
+        self.packet = { 'type': 'send-event',
+                        'data': {   'id': 'asdfg',
+                                    'sender':   {   'id':   'agent:   ',
+                                                    'name': 'ImAUser'}}}
     def test_grouplist(self):
         packet = self.packet
-        packet['data']['content'] = '!notgrouplist'
+        packet['data']['content'] = '!grouplist'
         assert self.hermothr.parse(packet) == ('GroupOne: PouncySilverkitten, Hermothr, Heimdall, ThisUserDoesnaeExist\nGroupTwo: UserOne, UserTwo, UserThree, UserFour\n') 
 
     def test_list_group(self):
         packet = self.packet
-        packet['data']['content'] = '!notgrouplist *GroupOne'
+        packet['data']['content'] = '!grouplist *GroupOne'
         assert self.hermothr.parse(packet) == "PouncySilverkitten\nHermothr\nHeimdall\nThisUserDoesnaeExist"

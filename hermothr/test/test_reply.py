@@ -17,6 +17,6 @@ class TestReply(unittest.TestCase):
     def test_send_reply_parse(self):
         packet = self.packet
         packet['type'] = "send-reply"
-        packet['data']['content'] = "<PouncySilverkitten 0:00:04 ago in &test> !herm @PouncySilverkitten blah blah"
+        packet['data']['content'] = "<PouncySilverkitten to PouncySilverkitten 0:00:04 ago in &test> blah blah"
         self.hermothr.parse(packet)
         assert self.hermothr.message_ids == {"id12345": "Hermothr", "id67890": "PouncySilverkitten"}
