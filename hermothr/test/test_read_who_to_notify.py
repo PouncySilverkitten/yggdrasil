@@ -19,10 +19,6 @@ class TestReadWhoToNotify(unittest.TestCase):
         assert self.hermothr.read_who_to_notify('!herm @PouncySilverkitten @herm hi!'.split()).sort() == ["PouncySilverkitten","herm"].sort()
         assert self.hermothr.read_who_to_notify('!hermothr @Xyzzy @Stormageddon @greenie Hey!'.split()).sort() == ["Xyzzy","Stormageddon","greenie"].sort()
 
-    def test_groups(self):
-        assert self.hermothr.read_who_to_notify("!herm *tradewinds any progress?".split()).sort() == ['Nuvanda', 'totally�����', 'DoctorNumberFour', 'Xyzzy', 'ㅇㅈㅇ', 'K', 'Garmy'].sort()
-        assert self.hermothr.read_who_to_notify("!herm *linux *m4k hi hi.".split()).sort() == ["Garmy", "Xyzzy", "TauNeutrin0"].sort()
-
     def test_no_name(self):
         packet = self.packet
         packet['data']['content'] = "!herm PouncySilverkitten hi!"
@@ -50,4 +46,25 @@ class TestReadWhoToNotify(unittest.TestCase):
     def test_nick_in_message(self):
         packet = self.packet
         packet['data']['content'] = "!herm @PouncySilverkitten after further consideration, I do not believe @Heimdall to be spammy."
+        assert self.hermothr.parse(packet) == "/me will notify PouncySilverkitten."
+
+    def test_no_message(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm @PouncySilverkitten *tradewinds"
+        assert self.hermothr.parse(packet) == "/me can't see a message there"
+
+    def test_only_command(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm"
+        assert self.hermothr.parse(packet) == "/me couldn't find a person or group to notify there (use !help @Hermóðr to see an example)"
+
+    def test_messaging_only_self(self):
+        packet = self.packet
+        packet['data']['sender']['name'] = "Pouncy Silverkitten"
+        packet['data']['content'] = "!herm @PouncySilverkitten blah"
+        assert self.hermothr.parse(packet) == "/me won't tell you what you already know"
+
+    def test_messaging_self_others(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm @Hermothr @PouncySilverkitten Testing"
         assert self.hermothr.parse(packet) == "/me will notify PouncySilverkitten."
