@@ -47,3 +47,7 @@ class TestReadWhoToNotify(unittest.TestCase):
         packet['data']['content'] = "!herm @PouncySilverkitten hi!"
         assert self.hermothr.parse(packet) == "/me will notify PouncySilverkitten."
 
+    def test_nick_in_message(self):
+        packet = self.packet
+        packet['data']['content'] = "!herm @PouncySilverkitten after further consideration, I do not believe @Heimdall to be spammy."
+        assert self.hermothr.parse(packet) == "/me will notify PouncySilverkitten."

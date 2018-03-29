@@ -1,0 +1,58 @@
+--------------------
+2018-03-25 11:54:53 - Exception on message: {'session_id': '4a53794e7249556643736b3d-c4451179aeff4fc', 'id': 'bot:JSyNrIUfCsk=', 'from': '\x01(1P 5B)', 'to': '\x01(1P 5B 1N)'}:
+Traceback (most recent call last):
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 360, in main
+    messages_for_sender = self.check_for_messages(packet)
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 135, in check_for_messages
+    sender = self.hermothr.normaliseNick(packet['data']['sender']['name'])
+KeyError: 'sender'
+
+
+--------------------
+2018-03-25 11:56:23 - Exception on message: {'session_id': '4a53794e7249556643736b3d-c4451179aeff4fc', 'id': 'bot:JSyNrIUfCsk=', 'from': '\x01(1P 5B)', 'to': '\x01(1P 5B 1N)'}:
+Traceback (most recent call last):
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 360, in main
+    if message['type'] == 'send-event':
+TypeError: string indices must be integers
+
+
+--------------------
+2018-03-25 11:56:34 - Exception on message: {'session_id': '4a53794e7249556643736b3d-c4451179aeff4fc', 'id': 'bot:JSyNrIUfCsk=', 'from': '\x01(1P 5B)', 'to': '\x01(1P 5B 1N)'}:
+Traceback (most recent call last):
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 360, in main
+    if message['type'] == 'send-event':
+TypeError: string indices must be integers
+
+
+--------------------
+2018-03-25 11:57:11 - Exception on message: {'session_id': '4a53794e7249556643736b3d-c4451179aeff4fc', 'id': 'bot:JSyNrIUfCsk=', 'from': '\x01(1P 5B)', 'to': '\x01(1P 5B 1N)'}:
+Traceback (most recent call last):
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 364, in main
+    self.hermothr.send(self.parse(packet), packet['data']['id'])
+  File "/home/struan/.local/share/virtualenvs/hermothr-DG4s91OL/lib/python3.6/site-packages/karelia.py", line 132, in send
+    elif len(message) > 0:
+TypeError: object of type 'NoneType' has no len()
+
+
+--------------------
+2018-03-25 12:08:13 - Exception on message: {'id': '03c2wwo6pw4jk', 'parent': '03c2w3u0j4q2o', 'time': 1521979693, 'sender': {'id': 'account:01ha19ib9296o', 'name': 'Pouncy Silverkitten', 'server_id': 'heim.3', 'server_era': '03aa42ppf7mdc', 'session_id': '746564632d686e72744d593d-1d224a013a337d6a'}, 'content': '!herm @PouncySilverkitten hi!', 'edited': None, 'deleted': None}:
+Traceback (most recent call last):
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 378, in main
+    reply = self.parse(packet)
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 308, in parse
+    "group": group_flag,
+UnboundLocalError: local variable 'group_flag' referenced before assignment
+
+
+--------------------
+2018-03-25 14:19:13 - Exception on message: {'id': '03c38lcjjglj4', 'parent': '03c2w3u0j4q2o', 'time': 1521987553, 'sender': {'id': 'account:01ha19ib9296o', 'name': 'Pouncy Silverkitten', 'server_id': 'heim.3', 'server_era': '03aa42ppf7mdc', 'session_id': '746564632d686e72744d593d-1d224a013a337d6a'}, 'content': '!notgrouplist', 'edited': None, 'deleted': None}:
+Traceback (most recent call last):
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 379, in main
+    reply = self.parse(packet)
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 337, in parse
+    return(self.list_groups())
+  File "/home/struan/python/yggdrasil/hermothr/hermothr.py", line 80, in list_groups
+    for group in self.groups.keys:
+TypeError: 'builtin_function_or_method' object is not iterable
+
+

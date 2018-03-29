@@ -11,13 +11,17 @@ import time
 from hermothr import Hermothr
 
 rooms = ['xkcd', 'music', 'queer', 'bots']
+
+def main(room):
+    hermothr = Hermothr(room)
+    while True:
+        hermothr.main()
+
 if __name__ == "__main__":
     
     for room in rooms:
-        notnotbot = Hermothr(room)
-        instance = mp.Process(target=main, args=(room, notnotbot))
+        instance = mp.Process(target=main, args=(room,))
         instance.daemon = True
         instance.start()
         
-    notnotbot = karelia.newBot('Hermóðr', 'test')
-    main('test', notnotbot)
+    main('test')
