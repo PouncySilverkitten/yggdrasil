@@ -1,3 +1,5 @@
+"""The hermothr module provides a Hermothr object for use elsewhere"""
+
 import datetime
 import json
 import re
@@ -7,6 +9,7 @@ import time
 import karelia
 
 class Hermothr:
+    """The Hermothr object is a self-contained instance of the hermothr bot, connected to a single room"""
     def __init__(self, room, **kwargs):
         self.test = True if ('test' in kwargs and kwargs['test']) or room == "test_data" else False
 
@@ -316,7 +319,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                     recipient = self.message_ids[parent]
                     sane_message = ' '.join(split_content[1:])
 
-                if len(sane_message) == 0 or sane_message.isspace():
+                    if len(sane_message) == 0 or sane_message.isspace():
                         return "/me can't see a message there"
 
                     write_packet = {"text": sane_message,
@@ -325,7 +328,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                                     'room': self.room,
                                     'all_recipients': 'you',
                                     'to': self.hermothr.normaliseNick(recipient)}
- 
+
                     self.write_message(write_packet)
                     return "Will do."
 
@@ -346,17 +349,17 @@ Use !hermgrouplist to see all the groups and to see their occupants.
     def main(self):
         """
         main acts as an input redirector, calling functions as required.
- 
+
         Currently, `!notnotify @user` and `!notnotify *group` are supported, as well as
         `!group *group @user`, `!ungroup *group @user`, and `!reply message`.
-    
+
         - `!notnotify` will add a notify for user or group.
         - `!reply`, sent as the child of a notnotification, will send that reply to
         the original sender.
         - `!group` adds the specified user(s) to the specified group
         - `!ungroup` removes the specified user(s) from the specified groups
         """
-    
+
         message = ""
         while True:
             try:
@@ -372,7 +375,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                         self.write_messages()
                         self.write_groups()
                         sys.exit()
-                    
+
                     if packet['type'] == 'send-event':
                         messages_for_sender = self.check_for_messages(packet)
                         for message in messages_for_sender:
