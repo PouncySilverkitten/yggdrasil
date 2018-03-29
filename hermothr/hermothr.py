@@ -1,22 +1,10 @@
 import datetime
 import json
-import karelia
-import multiprocessing as mp
-import pprint
-import queue
 import re
 import sys
 import time
 
-rooms = ['xkcd', 'music', 'queer', 'bots']
-
-message_ids = {}
-last_message_from = "Hermóðr"
-messages = {}
-groups = {}
-surprises = []
-surprise = False
-not_command = ['!nnotify', '!herm', '!hermothr']
+import karelia
 
 class Hermothr:
     def __init__(self, room, **kwargs):
@@ -30,6 +18,8 @@ class Hermothr:
         self.message_ids = {}
         self.messages = {}
         self.groups = {}
+        self.long_help_template = ""
+        self.short_help_template = ""
 
         self.message_body_template = "<{} to {} {} ago in &{}> {}"
 
@@ -45,7 +35,7 @@ class Hermothr:
         except:
             with open(self.groups_file, 'w') as f:
                 f.write('{}')
-        
+
     def gen_help_messages(self):
         self.long_help_template = """A replacement for the much-missed @NotBot.
 Accepted commands are {} (!herm will be used below, but any in the list can be substituted.)
@@ -92,24 +82,25 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                 names_as_string += "{} ".format(names[i])
             else:
                 names_as_string += "{}, ".format(names[i])
-        return(names_as_string)
+        return names_as_string
 
     def check_messages_for_sender(self, sender):
         self.read_messages()
         if sender in self.messages:
             for_sender = self.messages[sender]
         else:
-            return([])
+            return []
         del self.messages[sender]
         self.write_messages()
-        return(for_sender)
+        return for_sender
 
     def time_since(self, before):
         now = datetime.datetime.utcnow()
         then = datetime.datetime.utcfromtimestamp(before)
 
         delta = now - then
-        return str(delta).split('.')[0]
+        delta_string = str(delta).split('.')[0]
+        return delta_string
         
     def generate_not_commands(self):
         self.hermothr.send({'type': 'who'})
@@ -141,7 +132,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                                                                 message['text']))
 
         return(messages)
-    
+ 
     def write_message(self, write_packet):
         self.read_messages()
         name = write_packet["to"]
@@ -158,21 +149,21 @@ Use !hermgrouplist to see all the groups and to see their occupants.
 
     def bland(self, name):
         return re.sub(r'\s+', '', name)
-    
+
     def write_messages(self):
         """Saves messages to file"""
         with open(self.messages_file, 'w') as f:
             f.write(json.dumps(self.messages))
-    
+
     def write_groups(self):
         """Saves groups to file"""
         with open(self.groups_file, 'w') as f:
             f.write(json.dumps(self.groups))
-    
+
     def read_who_to_notify(self, split_content):
         """
         Reads groups and users from a message
-    
+
         Returns a list of names. If the notnotify is to a group, a list of names
         will still be returned."""
         names = list()
@@ -188,45 +179,80 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                 return list(set(names))
             else:
                 return None
-    
-    def add_to_group(self, data):
+
+        if names == []:
+            return None
+        return list(set(names))
+
+    def add_to_group(self, split_contents):
         """Handles !group commands"""
-        message = data['content'].replace('\n', ' ')
-        words = message.split(' ')
-        if words[1][0] == '*':
-            group_name = words[1][1:]
+        grouped = []
+        not_grouped = []
+        del split_contents[0]
+        self.read_groups()
+        if split_contents[0][0] == '*':
+            group_name = split_contents[0][1:]
             if group_name not in self.groups:
                 self.groups[group_name] = []
-            words.remove(words[0])
-            words.remove(words[0])
-            for word in words:
-                word = word.replace('\n', ' ')
-                if len(word) > 2 and word[0] == "@" and not word[1:] in self.groups[group_name]:
-                    self.groups[group_name].append(word[1:])
-                    if "!notify" in not_command:
-                        hermothr.send("Adding {} to group {}".format(word,group_name),data['id'])
-        
-        self.write_groups() 
-    
-    def remove_from_group(self, data):
-        """Handles !ungroup commands"""
-        global groups
-        message = data['content']
-        words = message.split(' ')
-        if words[1][0] == '*':
-            group_name = words[1][1:]
-            words.remove(words[0])
-            words.remove(words[0])
-            for word in words:
-                if word[0] == "@" and word[1:] in groups[group_name]:
-                    groups[group_name].remove(word[1:])
-                    if "!notify" in not_command:
-                        hermothr.send("Removing {} from group {}".format(word,group_name),data['id'])
-            if len(groups[group_name]) == 0:
-                del groups[group_name]
-            with open('hermothrgroups.json', 'w') as f:
-                f.write(json.dumps(groups))
+            del split_contents[0]
+            for word in split_contents:
+                if word[0] == "@":
+                    if word[1:] not in self.groups[group_name]:
+                        self.groups[group_name].append(word[1:])
+                        grouped.append(word[1:])
+                        self.write_groups()
+                    else:
+                        not_grouped.append(word[1:])
 
+            if "!notify" in self.not_commands:
+                if grouped == [] and not_grouped == []:
+                    return "Couldn't find anyone to add. Syntax is !group *Group @User (@UserTwo...)"
+                elif grouped == []:
+                    return "User(s) specified are already in the group."
+                elif not_grouped == []:
+                    return "Adding {} to group {}.".format(", ".join(grouped), group_name)
+                else:
+                    return "Adding {} to group {} ({} already added).".format(", ".join(grouped), group_name, ", ".join(not_grouped))
+
+        elif "!notify" in self.not_commands:
+            return "Couldn't find a group to add user(s) to. Syntax is !group *Group @User (@UserTwo...)"
+
+    def remove_from_group(self, split_content):
+        """Handles !ungroup commands"""
+        del split_content[0]
+        self.read_groups()
+        ungrouped = []
+        not_ungrouped = []
+        if split_content[0][0] == '*':
+            group_name = split_content[0][1:]
+            if not group_name in self.groups.keys() and '!notify' in self.not_commands:
+                return "Group {} not found. Use !grouplist to see a list of all groups.".format(group_name)
+            del split_content[0]
+            for word in split_content:
+                if word[0] == "@":
+                    if word[1:] in self.groups[group_name]:
+                        self.groups[group_name].remove(word[1:])
+                        self.write_groups()
+                        ungrouped.append(word[1:])
+                    else:
+                        not_ungrouped.append(word[1:])
+
+            if self.groups[group_name] == []:
+                del self.groups[group_name]
+
+            if "!notify" in self.not_commands:
+                if ungrouped == [] and not_ungrouped == []:
+                    return "Couldn't find anyone to remove. Syntax is !ungroup *Group @User (@UserTwo...)"
+                elif ungrouped == []:
+                    return "No user(s) specified are in the group."
+                elif not_ungrouped == []:
+                    return "Removing {} from group {}.".format(", ".join(ungrouped), group_name)
+                else:
+                    return "Removing {} from group {} ({} not in group).".format(", ".join(ungrouped), group_name, ", ".join(not_ungrouped))
+
+        elif "!notify" in self.not_commands:
+            return "Couldn't find a group to remove users from. Syntax is !ungroup *Group @User (@UserTwo...)"
+            
     def remove_names(self, split_content):
         """Removes the names of the recipients from the text of a message"""
         recipients = []
@@ -252,7 +278,7 @@ Use !hermgrouplist to see all the groups and to see their occupants.
         elif packet['type'] == 'send-event' and not ('bot:' in packet['data']['sender']['id'] and 'Heimdall' != packet['data']['sender']['name']):
             # Handle a !(not)notify
             split_content = packet['data']['content'].split()
-            if split_content[0] in self.not_commands and len(split_content) > 2:
+            if split_content[0] in self.not_commands:
                 # Returns a list of recipients
                 recipients = self.read_who_to_notify(split_content)
                 if recipients == None:
@@ -260,12 +286,13 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                 else:
                     # Returns the message body
                     sane_message, all_recipients = self.remove_names(split_content[1:])
-                    
+
                     if len(sane_message) == 0 or sane_message.isspace():   
-                        return("/me can't see a message there")
+                        return "/me can't see a message there"
 
                     sender_name = self.bland(packet['data']['sender']['name'])
-                    if packet['data']['sender']['name'] in recipients: recipients.remove(sender_name)
+                    if sender_name in [self.bland(recipient) for recipient in recipients]:
+                        recipients.remove(self.bland(packet['data']['sender']['name']))
     
                     if len(recipients) == 0: return("/me won't tell you what you already know")
                     recipients.sort()
@@ -283,11 +310,14 @@ Use !hermgrouplist to see all the groups and to see their occupants.
 
                     return("/me will notify {}.".format(names_as_string))
                 
-            elif split_content[0] == "!reply" and 'parent' in packet['data'] and len(split_content) > 1:
+            elif split_content[0] == "!reply" and 'parent' in packet['data']:
                 parent = packet['data']['parent']
                 if self.check_parent(parent):
                     recipient = self.message_ids[parent]
-                    sane_message = ' '.join(split_content[1:])
+                    sane_message = ' '.join(split_content[1:]) 
+
+                    if len(sane_message) == 0 or sane_message.isspace():                        
+                        return "/me can't see a message there"
                     
                     write_packet = {"text": sane_message,
                                     "sender": self.bland(packet['data']['sender']['name']),
@@ -300,11 +330,11 @@ Use !hermgrouplist to see all the groups and to see their occupants.
                     return("Will do.")
     
             elif split_content[0] in ["!group", "!tgroup"] and len(split_content) > 1:
-                self.add_to_group(packet['data'])
-            elif split_content[0] == ["!ungroup", "!tungroup"] and len(split_content) > 1:
-                self.remove_from_group(packet['data'])
+                return self.add_to_group(split_content)
+            elif split_content[0] in ["!ungroup", "!tungroup"] and len(split_content) > 1:
+                return self.remove_from_group(split_content)
             elif len(split_content) == 1 and split_content[0] == '!grouplist':
-                return(self.list_groups())
+                return self.list_groups()
             elif split_content[0] == '!grouplist':
                 group_name = split_content[1][1:]
                 if group_name in self.groups:
