@@ -3,7 +3,7 @@ from heimdall import Heimdall
 
 class TestUserStats(unittest.TestCase):
     def setUp(self):
-        self.heimdall = Heimdall('test', verbose=False)
+        self.heimdall = Heimdall('test_data', verbose=False)
         self.heimdall.connect_to_database()
 
     def test_userstats(self):

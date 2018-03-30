@@ -54,10 +54,10 @@ class Heimdall:
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         self.force_new_logs = kwargs['new_logs'] if 'new_logs' in kwargs else False
 
-        if room == 'test':
+        if room == 'test_data':
             self.show("Testing mode enabled...", end='')
             self.tests = True
-            self.database = 'test.db'
+            self.database = 'test_data.db'
             self.show(" done")
         else:
             self.tests = kwargs['test'] if 'test' in kwargs else False
@@ -478,7 +478,7 @@ Ranking:\t\t\t\t\t{} of {}.
             top_ten += "{:2d}) {:<7}\t{}\n".format(i+1, int(result[2]), result[0])
 
         # Get activity over the last 28 days
-        lower_bound = datetime.now() + timedelta(-28)
+        lower_bound = datetime.utcnow() + timedelta(-28)
         lower_bound = time.mktime(lower_bound.timetuple())
         self.c.execute('''SELECT time, COUNT(*) FROM {} WHERE time > ? GROUP BY CAST(time / 86400 AS INT)'''.format(self.room), (lower_bound,))
         last_28_days = self.c.fetchall()
@@ -487,7 +487,7 @@ Ranking:\t\t\t\t\t{} of {}.
         busiest = (datetime.utcfromtimestamp(last_28_days[-1][0]).strftime("%Y-%m-%d"), last_28_days[-1][1])
         last_28_days.sort(key=operator.itemgetter(0))
 
-        midnight = time.mktime(datetime.combine(date.today(), dttime.min).timetuple())
+        midnight = time.mktime(datetime.combine(datetime.utcnow().date(), dttime.min).timetuple())
         messages_today = 0 
         for tup in last_28_days:
             if tup[0] > midnight:
