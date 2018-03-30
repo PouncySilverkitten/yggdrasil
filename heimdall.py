@@ -7,6 +7,7 @@ curiosity, it should be able to track the movements of spammers and other
 known-problematic individuals.
 """
 
+import argparse
 import calendar
 import codecs
 import html
@@ -15,8 +16,10 @@ import operator
 import os
 import random
 import re
+import signal
 import sqlite3
 import string
+import sys
 import time
 import urllib.request
 
@@ -594,3 +597,35 @@ Ranking:\t\t\t\t\t{} of {}.
             self.heimdall.disconnect()
         finally:
             time.sleep(1)
+        
+def on_sigint(signum, frame):
+    try:
+        heimdall.conn.commit()
+        heimdall.conn.close()
+        heimdall.heimdall.disconnect()
+    finally:
+        sys.exit()
+
+def main(*args, **kwargs):
+    signal.signal(signal.SIGINT, on_sigint)
+
+    while True:
+        heimdall = Heimdall(args[0])
+        try: 
+            heimdall.main()
+        except KillError:
+            raise KillError
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("room", nargs='?')
+    parser.add_argument("--stealth", help="If enabled, bot will not present on nicklist", action="store_true")
+    parser.add_argument("--force-new-logs", help="If enabled, Heimdall will delete any current logs for the room", action="store_true", dest="new_logs")
+    args = parser.parse_args()
+
+    room = args.room
+    stealth = args.stealth
+    new_logs = args.new_logs
+    heimdall = Heimdall(room, stealth=stealth, new_logs=new_logs)
+    
+    main(room, stealth=stealth, new_logs=new_logs)

@@ -5,7 +5,4 @@ install:
         - pip install pipenv
         - pipenv install
 script:
-        - cd heimdall
-        - pipenv run coverage run -m unittest discover -s test/ -vv
-        - cd ../hermothr
         - pipenv run coverage run -m unittest discover -s test/ -vv

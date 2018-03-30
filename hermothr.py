@@ -2,6 +2,10 @@
 
 import datetime
 import json
+import karelia
+import multiprocessing as mp
+import pprint
+import queue
 import re
 import sys
 import time
@@ -30,6 +34,7 @@ class Hermothr:
         except FileNotFoundError:
             with open('messages_delivered.json', 'w') as f:
                 f.write("[0]")
+                messages_delivered = 0
 
         self.message_body_template = "<{} to {} {} ago in &{}> {}"
 
@@ -417,3 +422,19 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                 self.write_messages()
                 self.write_groups()
                 time.sleep(2)
+            
+
+
+rooms = ['xkcd', 'music', 'queer', 'bots']
+
+def main(room):
+    hermothr = Hermothr(room)
+    while True:
+        hermothr.main()
+
+if __name__ == "__main__":
+    
+    for room in rooms:
+        instance = mp.Process(target=main, args=(room,))
+        instance.daemon = True
+        instance.start()
