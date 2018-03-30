@@ -6,7 +6,7 @@ import time
 
 class TestBasics(unittest.TestCase):
     def setUp(self):
-        self.heimdall = Heimdall('test', verbose=False)
+        self.heimdall = Heimdall('test_data', verbose=False)
         self.tomorrow = int(calendar.timegm(date.fromtimestamp(time.time()).timetuple())+(60*60*24))        
 
     def test_tomorrow(self):

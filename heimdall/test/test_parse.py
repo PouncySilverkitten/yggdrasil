@@ -30,7 +30,7 @@ class TestParse(unittest.TestCase):
         self.user_at_position += 1
 
     def setUp(self):
-        self.heimdall = Heimdall('test', verbose=False)
+        self.heimdall = Heimdall('test_data', verbose=False)
         self.heimdall.heimdall.send = self.send
         self.heimdall.insert_message = self.insert_message
         self.heimdall.get_user_stats = self.get_user_stats

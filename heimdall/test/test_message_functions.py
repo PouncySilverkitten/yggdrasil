@@ -4,7 +4,12 @@ from heimdall import Heimdall
 
 class TestBasics(unittest.TestCase):
     def setUp(self):
-        self.heimdall = Heimdall('test', verbose = False)
+        self.heimdall = Heimdall('test_data', verbose = False)
+        self.heimdall.connect_to_database()
+
+        self.heimdall.c.execute('''DELETE FROM test_data WHERE normname = ?''',('testingheimdall',))
+        self.heimdall.conn.commit()
+
         self.message_with_data_parent = {   'type': 'send-event',
                                             'data': {   'content': 'test message',
                                                         'id': 'uniqueid1',
@@ -36,7 +41,6 @@ class TestBasics(unittest.TestCase):
                                     'time': str(time.time()),
                                     'sender': { 'id': 'uniqueid',
                                                 'name': 'Testing Heimdall'}}
-        self.heimdall.connect_to_database()
 
     def test_data_parent(self):
         assert self.heimdall.insert_message(self.message_with_data_parent) == None
@@ -51,5 +55,5 @@ class TestBasics(unittest.TestCase):
         assert self.heimdall.insert_message(self.message_with_none) == None
 
     def tearDown(self):
-        self.heimdall.c.execute('''DELETE FROM test WHERE normname = ?''',('testingheimdall',))
+        self.heimdall.c.execute('''DELETE FROM test_data WHERE normname = ?''',('testingheimdall',))
         self.heimdall.conn.commit()
