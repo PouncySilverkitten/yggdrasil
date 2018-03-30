@@ -1,0 +1,6 @@
+__*
+*.db-journal
+logs.db
+hermothr_groups.json
+hermothr_messages.json
+*.log
