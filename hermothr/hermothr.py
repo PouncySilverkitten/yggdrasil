@@ -24,6 +24,13 @@ class Hermothr:
         self.long_help_template = ""
         self.short_help_template = ""
 
+        try:
+            with open('messages_delivered.json', 'r') as f:
+                self.messages_delivered = json.loads(f.read())[0]
+        except FileNotFoundError:
+            with open('messages_delivered.json', 'w') as f:
+                f.write("[0]")
+
         self.message_body_template = "<{} to {} {} ago in &{}> {}"
 
         self.messages_file = "test_messages.json" if self.test else "hermothr_messages.json"
@@ -59,9 +66,9 @@ Use !group and !ungroup to add yourself (or anyone else) to a group that can rec
 
 Use !grouplist to see all the groups and their members, or !grouplist *group to list the members of a specific group.
     
-@Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project."""
+@Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project. {} messages delivered to date."""
         self.short_help_template = 'Use {} to send messages to people who are currently unavailable.'
-        self.hermothr.stockResponses['longHelp'] = self.long_help_template.format(', '.join(self.not_commands))
+        self.hermothr.stockResponses['longHelp'] = self.long_help_template.format(', '.join(self.not_commands), self.messages_delivered)
         self.hermothr.stockResponses['shortHelp'] = self.short_help_template.format(', '.join(self.not_commands))
 
     def read_messages(self):
@@ -173,6 +180,8 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
         """Saves messages to file"""
         with open(self.messages_file, 'w') as f:
             f.write(json.dumps(self.messages))
+        with open('messages_delivered.json', 'w') as f:
+            f.write(json.dumps([self.messages_delivered]))
 
     def write_groups(self):
         """Saves groups to file"""
@@ -397,6 +406,8 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                         messages_for_sender = self.check_for_messages(packet)
                         for message in messages_for_sender:
                             self.hermothr.send(message, packet['data']['id'])
+                            self.messages_delivered += 1
+                        self.gen_help_messages()
                     reply = self.parse(packet)
                     if reply is not None:
                         self.hermothr.send(reply, packet['data']['id'])
