@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import time
 
 import heimdall
 import hermothr
@@ -35,6 +36,8 @@ for room in rooms:
     instance = mp.Process(target = run_heimdall, args=(room,))
     instance.daemon = True
     instance.start()
+    
+    time.sleep(10)
 
 yggdrasil = karelia.newBot('Yggdrasil', 'test')
 yggdrasil.connect()

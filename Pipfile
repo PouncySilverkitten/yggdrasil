@@ -18,6 +18,7 @@ coverage-badge = "*"
 unittest-xml-reporting = "*"
 idna = "*"
 urlextract = "*"
+"unittest2" = "*"
 
 
 [dev-packages]
