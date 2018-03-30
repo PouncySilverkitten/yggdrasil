@@ -75,7 +75,7 @@ Use !group and !ungroup to add yourself (or anyone else) to a group that can rec
 
 Use !grouplist to see all the groups and their members, or !grouplist *group to list the members of a specific group.
     
-@Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project."""
+@Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project. {} messages delivered to date.""".format(self.hermothr.messages_delivered)
         assert self.hermothr.hermothr.stockResponses['shortHelp'] == "Use !nnotify, !herm, !hermothr to send messages to people who are currently unavailable."
 
     def test_on_notbot_part(self):
@@ -100,7 +100,7 @@ Use !group and !ungroup to add yourself (or anyone else) to a group that can rec
 
 Use !grouplist to see all the groups and their members, or !grouplist *group to list the members of a specific group.
     
-@Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project."""
+@Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project. {} messages delivered to date.""".format(self.hermothr.messages_delivered)
 
         assert self.hermothr.hermothr.stockResponses['shortHelp'] == "Use !nnotify, !herm, !hermothr, !notify to send messages to people who are currently unavailable."
     def test_on_notbot_user_join_with_notbot(self):
