@@ -43,6 +43,9 @@ class KillError(Exception):
     """Exception for when the bot is killed."""
     pass
 
+class dummyQueue:
+    def __init__(): pass
+
 class Heimdall:
     """Heimdall is the logging and statistics portion of the pantheon.
 
@@ -52,7 +55,13 @@ class Heimdall:
     """
 
     def __init__(self, room, **kwargs):
-        self.room = room
+        if type(room) == str:
+            self.room = room
+            self.queue = dummyQueue
+            self.queue.put = self.write_to_database
+        else:
+            self.room = room[0]
+            self.queue = room[1]
         self.stealth = kwargs['stealth'] if 'stealth' in kwargs else False
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         self.force_new_logs = kwargs['new_logs'] if 'new_logs' in kwargs else False
@@ -128,18 +137,17 @@ class Heimdall:
         if not self.tests:
             self.heimdall.connect(True)
 
+        self.connect_to_database()
         self.extractor = URLExtract()
 
         self.show("Connecting to database...", end=' ')
-        self.connect_to_database()
         if self.force_new_logs:
             self.show("done\nDropping table...", end=' ')
             try:
-                self.c.execute('''DROP INDEX messageID''')
+                self.queue.put('''DROP INDEX messageID''')
             except:
                 self.heimdall.log()
-            self.c.execute('''DROP TABLE IF EXISTS {}'''.format(self.room))
-            self.conn.commit()
+            self.queue.put(('''DROP TABLE IF EXISTS {}'''.format(self.room)))
         self.show("done\nCreating tables...", end=' ')
         self.check_or_create_tables()
         self.show("done")
@@ -158,6 +166,15 @@ class Heimdall:
         if not self.tests:
             self.heimdall.disconnect()
 
+    def write_to_database(self, args):
+        if type(args) == tuple:
+            statement, params = args[0], args[1]
+            self.c.execute(statement, params)
+        else:
+            statement = args
+            self.c.execute(statement)
+        self.conn.commit()
+
     def connect_to_database(self):
         self.conn = sqlite3.connect(self.database)
         self.c = self.conn.cursor()
@@ -169,9 +186,8 @@ class Heimdall:
 
     def check_or_create_tables(self):
         """Tries to create tables. If it fails, assume tables already exist."""
-
         try:
-            self.c.execute('''  CREATE TABLE {}(
+            self.queue.put(('''  CREATE TABLE {}(
                                 content text,
                                 id text,
                                 parent text,
@@ -179,11 +195,10 @@ class Heimdall:
                                 sendername text,
                                 normname text,
                                 time real
-                            )'''.format(self.room))
-            self.c.execute('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room))
+                            )'''.format(self.room)))
+            self.queue.put(('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room)))
         except sqlite3.OperationalError:
-            self.heimdall.log()
-            self.show(' existing tables found...', ' ')
+            pass
 
     def get_room_logs(self):
         """Create or update logs of the room.
@@ -217,27 +232,21 @@ class Heimdall:
                         raise UpdateDone
 
                     disp = reply['data']['log'][0]
-                    self.show('    ({})[{}] {}'.format( datetime.utcfromtimestamp(disp['time']).strftime("%Y-%m-%d %H:%M"),
-                                                        disp['sender']['name'].translate(self.heimdall.non_bmp_map),
+                    self.show('    ({} in &{})[{}] {}'.format( datetime.utcfromtimestamp(disp['time']).strftime("%Y-%m-%d %H:%M"),
+                                                        self.room, disp['sender']['name'].translate(self.heimdall.non_bmp_map),
                                                         disp['content'].translate(self.heimdall.non_bmp_map)))
 
                     # Append the data in this message to the data list ready for executemany
                     for message in reply['data']['log']:
-                        if not 'parent' in message:
-                            message['parent'] = ''
-                        data.append((   message['content'], message['id'], message['parent'],
-                                        message['sender']['id'], message['sender']['name'],
-                                        self.heimdall.normaliseNick(message['sender']['name']),
-                                        message['time']))
+                        # Attempts to insert all the messages in bulk. If it fails, it will
+                        # break out of the loop and we will assume that the logs are now
+                         # up to date.
+                        self.c.execute('''SELECT COUNT(*) FROM {} WHERE id IS ?'''.format(self.room), (message['id'],))
+                        result = self.c.fetchone()[0]
+                        if result == 1:
+                            raise UpdateDone
+                        self.insert_message(message)
 
-                    # Attempts to insert all the messages in bulk. If it fails, it will
-                    # break out of the loop and we will assume that the logs are now
-                    # up to date.
-                    try:
-                        self.c.executemany('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data)
-                    except sqlite3.IntegrityError:
-                        raise UpdateDone
- 
                     if len(reply['data']['log']) != 1000:
                         raise UpdateDone
                     else:
@@ -247,7 +256,6 @@ class Heimdall:
                     self.insert_message(reply)
  
             except UpdateDone:
-                self.conn.commit()
                 break
 
     def insert_message(self, message):
@@ -268,7 +276,7 @@ class Heimdall:
                     self.heimdall.normaliseNick(message['sender']['name']),
                     message['time'])
  
-        self.c.execute('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data)
+        self.queue.put(('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data))
         self.conn.commit()
 
 
