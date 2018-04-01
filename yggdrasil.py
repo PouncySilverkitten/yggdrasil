@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import time
 
+import forseti
 import heimdall
 import hermothr
 import karelia
@@ -20,26 +21,37 @@ def on_sigint(signum, frame):
     finally:
         sys.exit()
 
-def run_heimdall(room):
-    heimdall.main(room)
+def run_forseti(queue):
+    forseti.main(queue)
+
+def run_heimdall(room, queue):
+    heimdall.main((room, queue))
 
 def run_hermothr(room):
     hermothr.main(room)
 
-rooms = ['xkcd', 'music', 'queer', 'bots', 'test']
+def main():
+    rooms = ['xkcd', 'music', 'queer', 'bots', 'test']
 
-for room in rooms:
-    instance = mp.Process(target = run_hermothr, args=(room,))
+    queue = mp.Queue()
+    instance = mp.Process(target = run_forseti, args=(queue,))
     instance.daemon = True
     instance.start()
 
-    instance = mp.Process(target = run_heimdall, args=(room,))
-    instance.daemon = True
-    instance.start()
+    for room in rooms:
+        instance = mp.Process(target = run_hermothr, args=(room,))
+        instance.daemon = True
+        instance.start()
     
-    time.sleep(10)
+        instance = mp.Process(target = run_heimdall, args=(room, queue))
+        instance.daemon = True
+        instance.start()
+        
+    yggdrasil = karelia.newBot('Yggdrasil', 'test')
+    yggdrasil.connect()
+    while True:
+        yggdrasil.parse()
 
-yggdrasil = karelia.newBot('Yggdrasil', 'test')
-yggdrasil.connect()
-while True:
-    yggdrasil.parse()
+if __name__ == '__main__':
+    main()
+
