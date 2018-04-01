@@ -40,4 +40,12 @@ def check_aliases(user):
     aliases = parse_aliases(content)
     return aliases
 
-#print(check_aliases("tw947:guitar:"))
+def add_alias(write, master, alias):
+    write(('''INSERT OR FAIL INTO aliases VALUES (?, ?)''', (master, alias,)))
+
+def is_alias(c, master, alias):
+    c.execute('''SELECT COUNT(*) from aliases WHERE master IS ? AND alias IS ?''', (master, alias))
+    assert c.fetchone()[0] == 0
+
+def remove_alias(write, alias):
+    write(('''DELETE FROM aliases * WHERE alias IS ?''', (alias,)))
