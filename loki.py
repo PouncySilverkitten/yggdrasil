@@ -15,13 +15,7 @@ def get_aliases(loki, user):
             send_id = reply['data']['id']
             break
     while True:
-        reply = loki.parse()
-        reply_type = reply['type'] == 'send-event'
-        sender_name = reply['data']['sender']['name'] == 'TellBot'
-        sender_id = reply['data']['sender']['id'].startswith('bot:')
-        is_child = 'parent' in reply['data'] and reply['data']['parent'] == send_id
-
-        if reply_type and sender_name and sender_id and is_child:
+        if reply['type'] == 'send-event' and reply['data']['sender']['name'] == 'TellBot' and reply['data']['sender']['id'].startswith('bot:') and 'parent' in reply['data'] and reply['data']['parent'] == send_id:
             content = reply['data']['content']
             break
     loki.disconnect()
