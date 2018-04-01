@@ -595,7 +595,8 @@ Ranking:\t\t\t\t\t{} of {}.
             self.look_for_room_links(message['data']['content'])
             urls = self.get_urls(message['data']['content'])
             self.heimdall.send(self.get_page_titles(urls),message['data']['id'])
-            if not self.is_alias(message['data']['sender']['name']): self.check_aliases(message['data']['sender']['name'])
+            if not self.tests and not self.is_alias(message['data']['sender']['name']):
+                self.check_aliases(message['data']['sender']['name'])
 
             comm = message['data']['content'].split()
             if comm[0][0] == "!":
