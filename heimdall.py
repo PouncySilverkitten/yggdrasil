@@ -1,5 +1,5 @@
 """Heimdall is a monitoring, logging, and statistics generating bot.
-
+   
 Heimdall will eventually have the ability to spread across multiple rooms.
 The goal is that as well as being able to monitor euphoria.io and provide
 accurate logs and statistics on request for the purposes of archiving and
@@ -657,10 +657,12 @@ def on_sigint(signum, frame):
     finally:
         sys.exit()
 
-def main(room, stealth, new_logs):
+def main(room, **kwargs):
     signal.signal(signal.SIGINT, on_sigint)
 
     while True:
+        stealth = kwargs['stealth'] if 'stealth' in kwargs else False
+        new_logs = kwargs['new_logs'] if 'new_logs' in kwargs else False
         heimdall = Heimdall(room, stealth=stealth, new_logs=new_logs)
         try: 
             heimdall.main()
