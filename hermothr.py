@@ -21,6 +21,10 @@ class Hermothr:
         self.not_commands = ['!nnotify', '!herm', '!hermothr']
         self.room = room
 
+        self.messages_file = "test_messages.json" if self.test else "hermothr_messages.json"
+        self.groups_file = "test_groups.json" if self.test else "hermothr_groups.json"
+        self.messages_delivered_file = "messages_delivered_test.json" if self.test else "messages_delivered.json"
+
         self.last_message_from = "Hermóðr"
         self.message_ids = {}
         self.messages = {}
@@ -29,17 +33,15 @@ class Hermothr:
         self.short_help_template = ""
 
         try:
-            with open('messages_delivered.json', 'r') as f:
+            with open(self.messages_delivered_file, 'r') as f:
                 self.messages_delivered = json.loads(f.read())[0]
         except FileNotFoundError:
-            with open('messages_delivered.json', 'w') as f:
+            with open(self.messages_delivered_file, 'w') as f:
                 f.write("[0]")
                 messages_delivered = 0
 
         self.message_body_template = "<{} to {} {} ago in &{}> {}"
 
-        self.messages_file = "test_messages.json" if self.test else "hermothr_messages.json"
-        self.groups_file = "test_groups.json" if self.test else "hermothr_groups.json"
         try:
             self.read_messages()
         except FileNotFoundError:
@@ -152,12 +154,20 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
         sender = self.hermothr.normaliseNick(packet['data']['sender']['name'])
         messages_for_sender = self.check_messages_for_sender(sender)
         messages = []
+        
+        with open(self.messages_delivered_file, 'r') as f:
+            self.messages_delivered = json.loads(f.read())[0]
+
         for message in messages_for_sender:
+            self.messages_delivered += 1 
             messages.append(self.message_body_template.format(  message['sender'],
                                                                 message['all_recipients'],
                                                                 self.time_since(message['time']),
                                                                 message['room'],
                                                                 message['text']))
+
+        with open(self.messages_delivered_file, 'w') as f:
+            f.write(json.dumps([self.messages_delivered]))
 
         return messages
 

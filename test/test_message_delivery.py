@@ -71,9 +71,11 @@ class testMessageDelivery(unittest.TestCase):
         assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Hermothr-test 0:01:00 ago in &test_data> test message 123 blah']
 
     def test_multiple_messages(self):
+        delivered = self.hermothr.messages_delivered
         packet = self.packet
         packet['data']['sender']['name'] = 'Multi-Message Test'
         assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Multi-Message Test 0:03:44 ago in &music> Look at all...', '<PouncySilverkitten to Multi-Message Test 0:03:04 ago in &bots> ...these messages!']
+        assert self.hermothr.messages_delivered == delivered + 2
 
     def test_group(self):
         packet = self.packet

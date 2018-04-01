@@ -69,14 +69,14 @@ class Heimdall:
         if room == 'test_data':
             self.show("Testing mode enabled...", end='')
             self.tests = True
-            self.database = 'test_data.db'
+            self.database = 'heimdall_data/test_data.db'
             self.show(" done")
         else:
             self.tests = kwargs['test'] if 'test' in kwargs else False
             self.database = 'logs.db'
         self.heimdall = karelia.newBot('Heimdall', self.room)
 
-        self.files = {'regex': 'regex', 'possible_rooms': 'possible_rooms.json', 'help_text': 'help_text.json', 'block_list': 'block_list.json', 'imgur': 'imgur.json'}
+        self.files = {'regex': 'heimdall_data/regex', 'possible_rooms': 'heimdall_data/possible_rooms.json', 'help_text': 'heimdall_data/help_text.json', 'block_list': 'heimdall_data/block_list.json', 'imgur': 'heimdall_data/imgur.json'}
         self.show("Loading files... ")
         for key in self.files:
             self.show("    Loading {}...".format(key), end=' ')
@@ -380,10 +380,10 @@ class Heimdall:
     def look_for_room_links(self, content):
         """Looks for and saves all possible rooms in message"""
         new_possible_rooms = set([room[1:] for room in content.split() if room[0] == '&'])
-        with open('possible_rooms.json', 'r') as f:
+        with open(self.files['possible_rooms'], 'r') as f:
             possible_rooms = set(json.loads(f.read()))
         possible_rooms.union(new_possible_rooms)
-        with open('possible_rooms.json', 'w') as f:
+        with open(self.files['possible_rooms'], 'w') as f:
             f.write(json.dumps(list(possible_rooms)))
 
     def get_user_stats(self, user):
