@@ -33,6 +33,7 @@ from urlextract import URLExtract
 import pyimgur
 
 import karelia
+import loki
 
 class UpdateDone(Exception):
     """Exception meaning that logs are up to date"""
@@ -42,9 +43,6 @@ class UpdateDone(Exception):
 class KillError(Exception):
     """Exception for when the bot is killed."""
     pass
-
-class dummyQueue:
-    def __init__(): pass
 
 class Heimdall:
     """Heimdall is the logging and statistics portion of the pantheon.
@@ -57,8 +55,7 @@ class Heimdall:
     def __init__(self, room, **kwargs):
         if type(room) == str:
             self.room = room
-            self.queue = dummyQueue
-            self.queue.put = self.write_to_database
+            self.queue = None
         else:
             self.room = room[0]
             self.queue = room[1]
@@ -144,10 +141,10 @@ class Heimdall:
         if self.force_new_logs:
             self.show("done\nDropping table...", end=' ')
             try:
-                self.queue.put('''DROP INDEX messageID''')
+                self.write_to_database('''DROP INDEX messageID''')
             except:
                 self.heimdall.log()
-            self.queue.put(('''DROP TABLE IF EXISTS {}'''.format(self.room)))
+            self.write_to_database(('''DROP TABLE IF EXISTS {}'''.format(self.room)))
         self.show("done\nCreating tables...", end=' ')
         self.check_or_create_tables()
         self.show("done")
@@ -167,13 +164,48 @@ class Heimdall:
             self.heimdall.disconnect()
 
     def write_to_database(self, args):
-        if type(args) == tuple:
-            statement, params = args[0], args[1]
-            self.c.execute(statement, params)
+        if self.queue is not None:
+            self.queue.puts(args)
+        
         else:
-            statement = args
-            self.c.execute(statement)
-        self.conn.commit()
+            if type(args) == tuple:
+                statement, params = args[0], args[1]
+                self.c.execute(statement, params)
+            else:
+                statement = args
+                self.c.execute(statement)
+            self.conn.commit()
+
+    def check_aliases(self, user):
+        aliases = loki.check_aliases(self.heimdall.normaliseNick(user))
+        for alias in aliases:
+            self.add_alias(user, alias)
+
+    def add_alias(self, master, alias):
+        master = self.heimdall.normaliseNick(master)
+        alias = self.heimdall.normaliseNick(alias)
+        if alias in ['me','you']: return
+
+        try:
+            self.write_to_database(loki.add_alias(master, alias))
+        except:
+            self.heimdall.log()
+
+    def is_alias(self, alias):
+        self.c.execute(*loki.is_alias(self.heimdall.normaliseNick(alias)))
+        if self.c.fetchone()[0] == 0:
+            return False
+        return True
+
+    def remove_alias(self, alias):
+        try:
+            self.write_to_database(loki.remove_alias(alias))
+        except:
+            self.heimdall.log()
+    
+    def alias_of(alias):
+        self.c.execute(loki.alias_of(alias))
+        return c.fetchone()[0]
 
     def connect_to_database(self):
         self.conn = sqlite3.connect(self.database)
@@ -187,7 +219,7 @@ class Heimdall:
     def check_or_create_tables(self):
         """Tries to create tables. If it fails, assume tables already exist."""
         try:
-            self.queue.put(('''  CREATE TABLE {}(
+            self.write_to_database(('''  CREATE TABLE {}(
                                 content text,
                                 id text,
                                 parent text,
@@ -196,8 +228,11 @@ class Heimdall:
                                 normname text,
                                 time real
                             )'''.format(self.room)))
-            self.queue.put(('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room)))
+            self.write_to_database(('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room)))
+            self.write_to_database(('''CREATE TABLE aliases(master text, alias text)'''))
+            self.write_to_database(('''CREATE UNIQUE INDEX master ON aliases(alias)'''))
         except sqlite3.OperationalError:
+            #self.heimdall.log()
             pass
 
     def get_room_logs(self):
@@ -276,8 +311,7 @@ class Heimdall:
                     self.heimdall.normaliseNick(message['sender']['name']),
                     message['time'])
  
-        self.queue.put(('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data))
-        self.conn.commit()
+        self.write_to_database(('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data))
 
 
     def next_day(self, day):
@@ -561,6 +595,7 @@ Ranking:\t\t\t\t\t{} of {}.
             self.look_for_room_links(message['data']['content'])
             urls = self.get_urls(message['data']['content'])
             self.heimdall.send(self.get_page_titles(urls),message['data']['id'])
+            if not self.is_alias(message['data']['sender']['name']): self.check_aliases(message['data']['sender']['name'])
 
             comm = message['data']['content'].split()
             if comm[0][0] == "!":
@@ -590,6 +625,9 @@ Ranking:\t\t\t\t\t{} of {}.
                     else:
                         self.heimdall.send(self.get_rank_of_user(message['data']['sender']['name']), message['data']['id'])
 
+                elif comm[0] == "!alias":
+                    pass
+
     def main(self):
         """Main loop"""
         try:
@@ -618,11 +656,11 @@ def on_sigint(signum, frame):
     finally:
         sys.exit()
 
-def main(*args, **kwargs):
+def main(room, stealth, new_logs):
     signal.signal(signal.SIGINT, on_sigint)
 
     while True:
-        heimdall = Heimdall(args[0])
+        heimdall = Heimdall(room, stealth=stealth, new_logs=new_logs)
         try: 
             heimdall.main()
         except KillError:
@@ -638,6 +676,5 @@ if __name__ == '__main__':
     room = args.room
     stealth = args.stealth
     new_logs = args.new_logs
-    heimdall = Heimdall(room, stealth=stealth, new_logs=new_logs)
     
-    main(room, stealth=stealth, new_logs=new_logs)
+    main(room, stealth, new_logs)

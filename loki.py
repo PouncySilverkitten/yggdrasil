@@ -20,9 +20,8 @@ def get_aliases(loki, user):
         sender_name = reply['data']['sender']['name'] == 'TellBot'
         sender_id = reply['data']['sender']['id'].startswith('bot:')
         is_child = 'parent' in reply['data'] and reply['data']['parent'] == send_id
-        is_right_user = reply['data']['content'].split()[2][1:] == user
 
-        if reply_type and sender_name and sender_id and is_child and is_right_user:
+        if reply_type and sender_name and sender_id and is_child:
             content = reply['data']['content']
             break
     loki.disconnect()
@@ -40,12 +39,14 @@ def check_aliases(user):
     aliases = parse_aliases(content)
     return aliases
 
-def add_alias(write, master, alias):
-    write(('''INSERT OR FAIL INTO aliases VALUES (?, ?)''', (master, alias,)))
+def add_alias(master, alias):
+    return ('''INSERT OR FAIL INTO aliases VALUES (?, ?)''', (master, alias,))
 
-def is_alias(c, master, alias):
-    c.execute('''SELECT COUNT(*) from aliases WHERE master IS ? AND alias IS ?''', (master, alias))
-    assert c.fetchone()[0] == 0
+def is_alias(alias):
+    return ('''SELECT COUNT(*) FROM aliases WHERE alias IS ?''', (alias,))
 
-def remove_alias(write, alias):
-    write(('''DELETE FROM aliases * WHERE alias IS ?''', (alias,)))
+def remove_alias(alias):
+    return ('''DELETE FROM aliases * WHERE alias IS ?''', (alias,))
+
+def alias_of(alias):
+    return ('''SELECT master from aliases WHERE alias IS ?''', (alias))
