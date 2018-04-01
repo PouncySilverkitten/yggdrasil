@@ -3,6 +3,6 @@
 ![Coverage Badge](coverage.svg)
 
 ## Heimdall
-![Pylint Badge](heimdall_data/pylint.svg)
+![Pylint Badge](heimdall_data/heimdall.svg)
 ## Hermothr
-![Pylint Badge](hermothr_data/pylint.svg)
+![Pylint Badge](hermothr_data/hermothr.svg)
