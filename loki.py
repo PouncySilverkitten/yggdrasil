@@ -1,10 +1,13 @@
 import karelia
 
-def check_aliases(user):
+def connect():
     loki = karelia.newBot('Loki', 'test')
     loki.connect()
     for _ in range(3):
         loki.parse()
+    return loki
+
+def get_aliases(loki, user):
     loki.send("!alias @{}".format(user))
     while True:
         reply = loki.parse()
@@ -22,10 +25,19 @@ def check_aliases(user):
         if reply_type and sender_name and sender_id and is_child and is_right_user:
             content = reply['data']['content']
             break
+    loki.disconnect()
+    return(content)
 
+def parse_aliases(content):
     aliases = []
     content = content.split('): ')[1]
     aliases = [name.replace('and ','').strip() if name.startswith('and ') else name.strip() for name in content.split(', ')]
     return aliases
 
-print(check_aliases("tw947:guitar:"))
+def check_aliases(user):
+    loki = connect()
+    content = get_aliases(loki, user)
+    aliases = parse_aliases(content)
+    return aliases
+
+#print(check_aliases("tw947:guitar:"))
