@@ -19,4 +19,4 @@ def check_aliases(user):
         is_child = 'parent' in reply['data'] and reply['data']['parent'] == send_id
 
         if reply_type and sender_name and sender_id and is_child:
-
+            pass
