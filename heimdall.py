@@ -373,7 +373,11 @@ class Heimdall:
 
     def upload_and_delete_graph(self, filename):
         """Uploads passed file to imgur and deletes it"""
-        url = self.imgur_client.upload_image(filename).link
+        try:
+            url = self.imgur_client.upload_image(filename).link
+        except:
+            self.heimdall.log()
+            url = "Imgur upload failed, sorry."
         os.remove(filename)
         return(url)
 
