@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "5d19d4c5778cbca86578e20c8f33a5edf166ad477599365005daad7d673fc06e"
+            "sha256": "4632ab1f9bd158accf5cf64c3b4852bf1bea2d2e4d692666da6d89d8e1ed2762"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -208,6 +208,9 @@
                 "sha256:f776ca7f14663bd9ac14a1380db62c87ed32231d159d2d167ad1cb817dcb9144"
             ],
             "version": "==0.6.0"
+        },
+        "pylint-badge": {
+            "git": "https://github.com/pouncysilverkitten/pylint-badge"
         },
         "pyparsing": {
             "hashes": [

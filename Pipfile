@@ -19,6 +19,7 @@ unittest-xml-reporting = "*"
 idna = "*"
 urlextract = "*"
 "unittest2" = "*"
+pylint-badge = {git = "https://github.com/pouncysilverkitten/pylint-badge"}
 
 
 [dev-packages]
