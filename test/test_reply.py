@@ -17,7 +17,7 @@ class TestReply(unittest.TestCase):
     def test_send_reply_parse(self):
         packet = self.packet
         packet['type'] = "send-reply"
-        packet['data']['content'] = "<PouncySilverkitten to PouncySilverkitten 0:00:04 ago in &test> blah blah"
+        packet['data']['content'] = "<PouncySilverkitten to PouncySilverkitten 00m04 ago in &test> blah blah"
         self.hermothr.parse(packet)
         assert self.hermothr.message_ids == {"id12345": "Hermothr", "id67890": "PouncySilverkitten"}
 
@@ -27,7 +27,7 @@ class TestReply(unittest.TestCase):
         packet['data']['content'] = "!reply Hi hi."
         assert self.hermothr.parse(packet) == "Will do."
         del packet['data']['parent']
-        assert self.hermothr.check_for_messages(packet) == ['<Hermothr to you 0:00:00 ago in &test_data> Hi hi.']
+        assert self.hermothr.check_for_messages(packet) == ['<Hermothr to you 00m00 ago in &test_data> Hi hi.']
 
     def test_bad_reply(self):
         packet = self.packet

@@ -63,29 +63,29 @@ class testMessageDelivery(unittest.TestCase):
 
     def test_single_message(self):
         packet = self.packet
-        assert self.hermothr.check_for_messages(packet) == ['<Hermothr to Hermothr 0:00:00 ago in &xkcd> test message 123 blah']
+        assert self.hermothr.check_for_messages(packet) == ['<Hermothr to Hermothr 00m00 ago in &xkcd> test message 123 blah']
     
     def test_new_message(self):
         packet = self.packet
         packet['data']['sender']['name'] = 'Hermothr-test'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Hermothr-test 0:01:00 ago in &test_data> test message 123 blah']
+        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Hermothr-test 01m00 ago in &test_data> test message 123 blah']
 
     def test_multiple_messages(self):
         delivered = self.hermothr.messages_delivered
         packet = self.packet
         packet['data']['sender']['name'] = 'Multi-Message Test'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Multi-Message Test 0:03:44 ago in &music> Look at all...', '<PouncySilverkitten to Multi-Message Test 0:03:04 ago in &bots> ...these messages!']
+        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Multi-Message Test 03m44 ago in &music> Look at all...', '<PouncySilverkitten to Multi-Message Test 03m04 ago in &bots> ...these messages!']
         assert self.hermothr.messages_delivered == delivered + 2
 
     def test_group(self):
         packet = self.packet
         packet['data']['sender']['name'] = 'HermothrGroup'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to *NotifierBots 0:00:34 ago in &bots> Hi gang!']
+        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to *NotifierBots 00m34 ago in &bots> Hi gang!']
 
     def test_groups(self):
         packet = self.packet
         packet['data']['sender']['name'] = 'HermothrGroups'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil 0:00:34 ago in &bots> Hi gang!']
+        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil 00m34 ago in &bots> Hi gang!']
         
     def test_pipeline(self):
         with open('test_messages.json','w') as f:
@@ -133,11 +133,12 @@ class testMessageDelivery(unittest.TestCase):
         packet['data']['content'] = "/me is tired after all that."
         packet['data']['sender']['name'] = "Hermothr"
 
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Hermothr 0:00:00 ago in &test_data> This is the first test message.',
-                                                            '<PouncySilverkitten to Hermothr, Pouncy 0:00:00 ago in &test_data> This is the second test message.',
-                                                            '<PouncySilverkitten to *NotifierBots 0:00:00 ago in &test_data> This is the third test message.',
-                                                            '<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil 0:00:00 ago in &test_data> This is the fourth.',
-                                                            '<PouncySilverkitten to *NotifierBots, Pouncy 0:00:00 ago in &test_data> This is the fifth.',
-                                                            '<PouncySilverkitten to *RandomGroup, Hermothr 0:00:00 ago in &test_data> This is the sixth...',
-                                                            '<PouncySilverkitten to Hermothr, Pouncy, *NotAGroup 0:00:00 ago in &test_data> ...and the seventh.']
+        responses = self.hermothr.check_for_messages(packet)
+        assert responses[0] == '<PouncySilverkitten to Hermothr 00m00 ago in &test_data> This is the first test message.'
+        assert responses[1] == '<PouncySilverkitten to Hermothr, Pouncy 00m00 ago in &test_data> This is the second test message.'
+        assert responses[2] == '<PouncySilverkitten to *NotifierBots 00m00 ago in &test_data> This is the third test message.'
+        assert responses[3] == '<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil 00m00 ago in &test_data> This is the fourth.'
+        assert responses[4] == '<PouncySilverkitten to *NotifierBots, Pouncy 00m00 ago in &test_data> This is the fifth.'
+        assert responses[5] == '<PouncySilverkitten to *RandomGroup, Hermothr 00m00 ago in &test_data> This is the sixth...'
+        assert responses[6] == '<PouncySilverkitten to Hermothr, Pouncy, *NotAGroup 00m00 ago in &test_data> ...and the seventh.'
 

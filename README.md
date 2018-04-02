@@ -3,10 +3,10 @@
 ![Coverage Badge](coverage.svg)
 
 ## Heimdall
-![Pylint Badge](heimdall_data/heimdall.svg)
+![Pylint Badge](data/heimdall/heimdall.svg)
 ## Hermothr
-![Pylint Badge](hermothr_data/hermothr.svg)
+![Pylint Badge](data/hermothr/hermothr.svg)
 ## Forseti
-![Pylint Badge](forseti_data/forseti.svg)
+![Pylint Badge](data/forseti/forseti.svg)
 ## Loki
-![Pylint Badge](loki_data/loki.svg)
+![Pylint Badge](data/loki/loki.svg)

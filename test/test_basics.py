@@ -27,9 +27,9 @@ class TestBasics(unittest.TestCase):
         os.remove('test_groups.test')
 
     def test_timesince(self):
-        assert self.hermothr.time_since(time.time()-100000) == "1 day, 3:46:40"
-        assert self.hermothr.time_since(time.time()-10000000) == "115 days, 17:46:40"
-        assert self.hermothr.time_since(time.time()-10000000000) == "115740 days, 17:46:40"
+        assert self.hermothr.time_since(time.time()-100000) == "1 day, 3h46m40"
+        assert self.hermothr.time_since(time.time()-10000000) == "115 days, 17h46m40"
+        assert self.hermothr.time_since(time.time()-10000000000) == "115740 days, 17h46m40"
 
     def test_data_create(self):
         with open(self.hermothr.messages_file, 'r') as f:

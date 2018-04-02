@@ -14,16 +14,26 @@ class Forseti:
     def main(self):
         while True:
             incoming = self.queue.get()
-            if len(incoming) == 2:
-                query, parameters = incoming[0], incoming[1]
-            else:
-                query = incoming
-                parameters = ()
-            try:
-                self.c.execute(query, parameters)
-                self.conn.commit()
-            except:
-                pass
+            print(len(incoming))
+            if len(incoming) == 3:
+                query, values, mode = incoming[0], incoming[1], incoming[2]
+            else len(incoming) == 2:
+                query = incoming[0]
+                values = ()
+                mode = incoming[1]
+            if mode == 'execute':
+                try:
+                    self.c.execute(query, mode)
+                    self.conn.commit()
+                except Exception:
+                    raise Exception
+            elif mode == 'executemany':
+                try:
+                    self.c.executemany(query, mode)
+                    self.conn.commit()
+                except Exception:
+                    raise Exception
+
 
 def main(queue):
     forseti = Forseti(queue)

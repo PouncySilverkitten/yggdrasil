@@ -30,8 +30,21 @@ class TestBasics(unittest.TestCase):
                         '',
                         'all_time_url last_28_url']
 
-        for i in range(len(self.expcd)):
-            assert self.expcd[i] == recvd[i]
+        assert self.expcd[0] == recvd[0]
+        assert self.expcd[1] == recvd[1]
+        assert self.expcd[2] == recvd[2]
+        assert self.expcd[3] == recvd[3]
+        assert self.expcd[4] == recvd[4]
+        assert self.expcd[5] == recvd[5]
+        assert self.expcd[6] == recvd[6]
+        assert self.expcd[7] == recvd[7]
+        assert self.expcd[8] == recvd[8]
+        assert self.expcd[9] == recvd[9]
+        assert self.expcd[10] == recvd[10]
+        assert self.expcd[11] == recvd[11]
+        assert self.expcd[12] == recvd[12]
+        assert self.expcd[13] == recvd[13]
+        assert self.expcd[14] == recvd[14]
 
     def test_add_message(self):
         packet = {  'type': 'send-event',
@@ -61,6 +74,21 @@ class TestBasics(unittest.TestCase):
                         '',
                         'all_time_url last_28_url']
 
-        for i in range(len(self.expcd)):
-            assert self.expcd[i] == recvd[i]
-        
+        assert self.expcd[0] == recvd[0]
+        assert self.expcd[1] == recvd[1]
+        assert self.expcd[2] == recvd[2]
+        assert self.expcd[3] == recvd[3]
+        assert self.expcd[4] == recvd[4]
+        assert self.expcd[5] == recvd[5]
+        assert self.expcd[6] == recvd[6]
+        assert self.expcd[7] == recvd[7]
+        assert self.expcd[8] == recvd[8]
+        assert self.expcd[9] == recvd[9]
+        assert self.expcd[10] == recvd[10]
+        assert self.expcd[11] == recvd[11]
+        assert self.expcd[12] == recvd[12]
+        assert self.expcd[13] == recvd[13]
+        assert self.expcd[14] == recvd[14]
+
+    def test_agreement_user_room(self):
+        assert self.heimdall.get_room_stats().split('Pouncy Silverkitten')[0].split(')')[-1].strip() == self.heimdall.get_user_stats('Pouncy Silverkitten').split(':')[2].split('\n')[0].strip()
