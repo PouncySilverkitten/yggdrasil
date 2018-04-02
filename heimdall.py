@@ -536,12 +536,10 @@ Ranking:\t\t\t\t\t{} of {}.
         busiest = (datetime.utcfromtimestamp(last_28_days[-1][0]).strftime("%Y-%m-%d"), last_28_days[-1][1])
         last_28_days.sort(key=operator.itemgetter(0))
 
-        midnight = time.mktime(datetime.combine(datetime.utcnow().date(), dttime.min).timetuple())
-        messages_today = 0 
-        for tup in last_28_days:
-            if tup[0] > midnight:
-                messages_today = tup[1]
-                break
+        midnight = calendar.timegm(date.fromtimestamp(time.time()).timetuple())
+        messages_today = 0
+        if midnight in last_28_days:
+            messages_today = last_28_days[midnight]
 
         self.c.execute('''SELECT time, COUNT(*) FROM {} GROUP BY CAST(time/86400 AS INT)'''.format(self.room))
         messages_by_day = self.c.fetchall()
