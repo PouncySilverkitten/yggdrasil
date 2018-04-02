@@ -32,6 +32,8 @@ class Hermothr:
         self.long_help_template = ""
         self.short_help_template = ""
 
+        self.messages_to_be_delivered = []
+
         try:
             with open(self.messages_delivered_file, 'r') as f:
                 self.messages_delivered = json.loads(f.read())[0]
@@ -127,6 +129,9 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
 
         delta = now - then
         delta_string = str(delta).split('.')[0]
+        delta_string = delta_string.replace(':', 'h', 1)
+        delta_string = delta_string.replace(':', 'm', 1)
+        delta_string = delta_string.replace('0h','')
         return delta_string
 
     def generate_not_commands(self):
@@ -412,6 +417,7 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                     self.read_groups()
 
                     packet = self.hermothr.parse()
+                    print(packet)
                     if packet == 'Killed':
                         self.write_messages()
                         self.write_groups()
@@ -419,10 +425,21 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
 
                     if packet['type'] == 'send-event':
                         messages_for_sender = self.check_for_messages(packet)
-                        for message in messages_for_sender:
-                            self.hermothr.send(message, packet['data']['id'])
-                            self.messages_delivered += 1
+                        self.messages_to_be_delivered += [(message, packet['data']['id']) for message in messages_for_sender]
+
+                        with open(self.messages_delivered_file, 'r') as f:
+                            self.messages_delivered = json.loads(f.read())[0]
+                        self.messages_delivered += len(messages_for_sender)
+                        with open(self.messages_delivered_file, 'w') as f:
+                            f.write(json.dumps([self.messages_delivered]))
                         self.gen_help_messages()
+
+                    for _ in range(2):
+                        if len(self.messages_to_be_delivered) != 0:
+                            message, reply = self.messages_to_be_delivered[0]
+                            del self.messages_to_be_delivered[0]
+                            self.hermothr.send(message, reply)
+
                     reply = self.parse(packet)
                     if reply is not None:
                         self.hermothr.send(reply, packet['data']['id'])
@@ -433,8 +450,6 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                 self.write_groups()
                 time.sleep(2)
             
-
-
 rooms = ['xkcd', 'music', 'queer', 'bots']
 
 def main(room):
@@ -448,3 +463,5 @@ if __name__ == "__main__":
         instance = mp.Process(target=main, args=(room,))
         instance.daemon = True
         instance.start()
+    
+    main('test')

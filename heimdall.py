@@ -66,14 +66,14 @@ class Heimdall:
         if room == 'test_data':
             self.show("Testing mode enabled...", end='')
             self.tests = True
-            self.database = 'heimdall_data/test_data.db'
+            self.database = 'data/heimdall/test_data.db'
             self.show(" done")
         else:
             self.tests = kwargs['test'] if 'test' in kwargs else False
             self.database = 'logs.db'
         self.heimdall = karelia.newBot('Heimdall', self.room)
 
-        self.files = {'regex': 'heimdall_data/regex', 'possible_rooms': 'heimdall_data/possible_rooms.json', 'help_text': 'heimdall_data/help_text.json', 'block_list': 'heimdall_data/block_list.json', 'imgur': 'heimdall_data/imgur.json'}
+        self.files = {'regex': 'data/heimdall/regex', 'possible_rooms': 'data/heimdall/possible_rooms.json', 'help_text': 'data/heimdall/help_text.json', 'block_list': 'data/heimdall/block_list.json', 'imgur': 'data/heimdall/imgur.json'}
         self.show("Loading files... ")
         for key in self.files:
             self.show("    Loading {}...".format(key), end=' ')
@@ -163,49 +163,22 @@ class Heimdall:
         if not self.tests:
             self.heimdall.disconnect()
 
-    def write_to_database(self, args):
+    def write_to_database(self, query, **kwargs):
+        values = kwargs['values'] if 'values' in kwargs else ()
+        mode = kwargs['mode'] if 'mode' in kwargs else "execute"
+        
         if self.queue is not None:
-            self.queue.puts(args)
+            send = (statement, values, mode,)
+            self.queue.put(send)
         
         else:
-            if type(args) == tuple:
-                statement, params = args[0], args[1]
-                self.c.execute(statement, params)
+            if mode == "execute":
+                self.c.execute(query, values)
+            elif mode == "executemany":
+                self.c.executemany(query, values)
             else:
-                statement = args
-                self.c.execute(statement)
+                pass
             self.conn.commit()
-
-    def check_aliases(self, user):
-        aliases = loki.check_aliases(self.heimdall.normaliseNick(user))
-        for alias in aliases:
-            self.add_alias(user, alias)
-
-    def add_alias(self, master, alias):
-        master = self.heimdall.normaliseNick(master)
-        alias = self.heimdall.normaliseNick(alias)
-        if alias in ['me','you']: return
-
-        try:
-            self.write_to_database(loki.add_alias(master, alias))
-        except:
-            self.heimdall.log()
-
-    def is_alias(self, alias):
-        self.c.execute(*loki.is_alias(self.heimdall.normaliseNick(alias)))
-        if self.c.fetchone()[0] == 0:
-            return False
-        return True
-
-    def remove_alias(self, alias):
-        try:
-            self.write_to_database(loki.remove_alias(alias))
-        except:
-            self.heimdall.log()
-    
-    def alias_of(alias):
-        self.c.execute(loki.alias_of(alias))
-        return c.fetchone()[0]
 
     def connect_to_database(self):
         self.conn = sqlite3.connect(self.database)
@@ -270,17 +243,22 @@ class Heimdall:
                     self.show('    ({} in &{})[{}] {}'.format( datetime.utcfromtimestamp(disp['time']).strftime("%Y-%m-%d %H:%M"),
                                                         self.room, disp['sender']['name'].translate(self.heimdall.non_bmp_map),
                                                         disp['content'].translate(self.heimdall.non_bmp_map)))
-
                     # Append the data in this message to the data list ready for executemany
                     for message in reply['data']['log']:
-                        # Attempts to insert all the messages in bulk. If it fails, it will
-                        # break out of the loop and we will assume that the logs are now
-                         # up to date.
-                        self.c.execute('''SELECT COUNT(*) FROM {} WHERE id IS ?'''.format(self.room), (message['id'],))
-                        result = self.c.fetchone()[0]
-                        if result == 1:
-                            raise UpdateDone
-                        self.insert_message(message)
+                        if not 'parent' in message:
+                            message['parent'] = ''
+                        data.append((   message['content'], message['id'], message['parent'],
+                                        message['sender']['id'], message['sender']['name'],
+                                        self.heimdall.normaliseNick(message['sender']['name']),
+                                        message['time']))
+
+                    # Attempts to insert all the messages in bulk. If it fails, it will
+                    # break out of the loop and we will assume that the logs are now
+                    # up to date.
+                    try:
+                        self.write_to_database('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), values=data, mode="executemany")
+                    except sqlite3.IntegrityError:
+                        raise UpdateDone
 
                     if len(reply['data']['log']) != 1000:
                         raise UpdateDone
@@ -311,13 +289,13 @@ class Heimdall:
                     self.heimdall.normaliseNick(message['sender']['name']),
                     message['time'])
  
-        self.write_to_database(('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), data))
+        self.write_to_database('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), values=data)
 
 
     def next_day(self, day):
-        """Returns the timestamp of midnight on the day following the timestamp given"""
+        """Returns the timestamp of UTC midnight on the day following the timestamp given"""
         one_day = 60*60*24
-        tomorrow = int(calendar.timegm(date.fromtimestamp(day).timetuple()) + one_day)
+        tomorrow = int(calendar.timegm(datetime.utcfromtimestamp(day).date().timetuple()) + one_day)
         return(tomorrow)
 
     def date_from_timestamp(self, timestamp):
@@ -520,28 +498,29 @@ Ranking:\t\t\t\t\t{} of {}.
         count = self.c.fetchone()[0]
 
         # Calculate top ten posters of all time
-        self.c.execute('''SELECT sendername,normname,COUNT(normname) AS freq FROM {} GROUP BY sendername ORDER BY freq DESC LIMIT 10'''.format(self.room))
+        self.c.execute('''SELECT sendername,normname,COUNT(normname) AS freq FROM {} GROUP BY normname ORDER BY freq DESC LIMIT 10'''.format(self.room))
         results = self.c.fetchall()
         top_ten = ""
         for i, result in enumerate(results):
             top_ten += "{:2d}) {:<7}\t{}\n".format(i+1, int(result[2]), result[0])
 
         # Get activity over the last 28 days
-        lower_bound = datetime.utcnow() + timedelta(-28)
-        lower_bound = time.mktime(lower_bound.timetuple())
+        lower_bound = self.next_day(time.time()) - (60*60*24*28)
         self.c.execute('''SELECT time, COUNT(*) FROM {} WHERE time > ? GROUP BY CAST(time / 86400 AS INT)'''.format(self.room), (lower_bound,))
         last_28_days = self.c.fetchall()
+        days = last_28_days[:]
+        for day in days:
+            last_28_days.append((self.next_day(day[0])-60*60*24, day[1],))
+            last_28_days.remove(day)
         per_day_last_four_weeks = int(sum([count[1] for count in last_28_days])/28)
         last_28_days.sort(key=operator.itemgetter(1))
         busiest = (datetime.utcfromtimestamp(last_28_days[-1][0]).strftime("%Y-%m-%d"), last_28_days[-1][1])
         last_28_days.sort(key=operator.itemgetter(0))
 
-        midnight = time.mktime(datetime.combine(datetime.utcnow().date(), dttime.min).timetuple())
-        messages_today = 0 
-        for tup in last_28_days:
-            if tup[0] > midnight:
-                messages_today = tup[1]
-                break
+        midnight = calendar.timegm(datetime.utcnow().date().timetuple())
+        messages_today = 0
+        if midnight in [tup[0] for tup in last_28_days]:
+            messages_today = dict(last_28_days)[midnight]
 
         self.c.execute('''SELECT time, COUNT(*) FROM {} GROUP BY CAST(time/86400 AS INT)'''.format(self.room))
         messages_by_day = self.c.fetchall()
@@ -595,8 +574,6 @@ Ranking:\t\t\t\t\t{} of {}.
             self.look_for_room_links(message['data']['content'])
             urls = self.get_urls(message['data']['content'])
             self.heimdall.send(self.get_page_titles(urls),message['data']['id'])
-            if not self.tests and not self.is_alias(message['data']['sender']['name']):
-                self.check_aliases(message['data']['sender']['name'])
 
             comm = message['data']['content'].split()
             if comm[0][0] == "!":
@@ -680,4 +657,4 @@ if __name__ == '__main__':
     stealth = args.stealth
     new_logs = args.new_logs
     
-    main(room, stealth, new_logs)
+    main(room, stealth=stealth, new_logs=new_logs)
