@@ -59,6 +59,7 @@ class Heimdall:
         else:
             self.room = room[0]
             self.queue = room[1]
+
         self.stealth = kwargs['stealth'] if 'stealth' in kwargs else False
         self.verbose = kwargs['verbose'] if 'verbose' in kwargs else True
         self.force_new_logs = kwargs['new_logs'] if 'new_logs' in kwargs else False
@@ -70,11 +71,13 @@ class Heimdall:
             self.show(" done")
         else:
             self.tests = kwargs['test'] if 'test' in kwargs else False
-            self.database = 'logs.db'
+            self.database = 'yggdrasil.db'
+
         self.heimdall = karelia.newBot('Heimdall', self.room)
 
         self.files = {'regex': 'data/heimdall/regex', 'possible_rooms': 'data/heimdall/possible_rooms.json', 'help_text': 'data/heimdall/help_text.json', 'block_list': 'data/heimdall/block_list.json', 'imgur': 'data/heimdall/imgur.json'}
         self.show("Loading files... ")
+        
         for key in self.files:
             self.show("    Loading {}...".format(key), end=' ')
             try:
@@ -93,6 +96,8 @@ class Heimdall:
                 help_text = json.loads(f.read())
                 self.heimdall.stockResponses['shortHelp'] = help_text['short_help']
                 self.heimdall.stockResponses['longHelp'] = help_text['long_help'].format(self.room)
+                if os.path.basename(os.path.dirname(os.path.realpath(__file__))) != "prod-yggdrasil":
+                    self.heimdall.stockResponses['longHelp'] += "\nThis is a testing instance and may not be reliable."
                 self.show("done")
             except Exception:
                 self.heimdall.log()
@@ -141,10 +146,10 @@ class Heimdall:
         if self.force_new_logs:
             self.show("done\nDropping table...", end=' ')
             try:
-                self.write_to_database('''DROP INDEX messageID''')
+                self.write_to_database('''DROP INDEX globalid''')
             except:
                 self.heimdall.log()
-            self.write_to_database(('''DROP TABLE IF EXISTS {}'''.format(self.room)))
+            self.write_to_database('''DROP TABLE IF EXISTS messages''')
         self.show("done\nCreating tables...", end=' ')
         self.check_or_create_tables()
         self.show("done")
@@ -154,7 +159,7 @@ class Heimdall:
             self.get_room_logs()
             self.show("Done.")
 
-        self.c.execute('''SELECT COUNT(*) FROM {}'''.format(self.room))
+        self.c.execute('''SELECT COUNT(*) FROM messages WHERE room IS ?''', (self.room,))
         self.total_messages_all_time = self.c.fetchone()[0]
 
         self.conn.close()
@@ -192,20 +197,24 @@ class Heimdall:
     def check_or_create_tables(self):
         """Tries to create tables. If it fails, assume tables already exist."""
         try:
-            self.write_to_database(('''  CREATE TABLE {}(
+            self.write_to_database('''  CREATE TABLE messages(
                                 content text,
                                 id text,
                                 parent text,
                                 senderid text,
                                 sendername text,
                                 normname text,
-                                time real
-                            )'''.format(self.room)))
-            self.write_to_database(('''CREATE UNIQUE INDEX messageID ON {}(id)'''.format(self.room)))
-            self.write_to_database(('''CREATE TABLE aliases(master text, alias text)'''))
-            self.write_to_database(('''CREATE UNIQUE INDEX master ON aliases(alias)'''))
+                                time real,
+                                room text,
+                                globalid text
+                            )''')
+            self.write_to_database('''CREATE UNIQUE INDEX globalid ON messages(globalid)''')
+            try:
+                self.write_to_database('''CREATE TABLE aliases(master text, alias text)''')
+                self.write_to_database('''CREATE UNIQUE INDEX master ON aliases(alias)''')
+            except: pass
         except sqlite3.OperationalError:
-            #self.heimdall.log()
+            self.heimdall.log()
             pass
 
     def get_room_logs(self):
@@ -250,13 +259,13 @@ class Heimdall:
                         data.append((   message['content'], message['id'], message['parent'],
                                         message['sender']['id'], message['sender']['name'],
                                         self.heimdall.normaliseNick(message['sender']['name']),
-                                        message['time']))
+                                        message['time'], self.room, self.room+message['id']))
 
                     # Attempts to insert all the messages in bulk. If it fails, it will
                     # break out of the loop and we will assume that the logs are now
                     # up to date.
                     try:
-                        self.write_to_database('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), values=data, mode="executemany")
+                        self.write_to_database('''INSERT OR FAIL INTO messages VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)''', values=data, mode="executemany")
                     except sqlite3.IntegrityError:
                         raise UpdateDone
 
@@ -279,7 +288,7 @@ class Heimdall:
             data = (message['data']['content'], message['data']['id'], message['data']['parent'],
                     message['data']['sender']['id'], message['data']['sender']['name'],
                     self.heimdall.normaliseNick(message['data']['sender']['name']),
-                    message['data']['time'])
+                    message['data']['time'], self.room, self.room+message['data']['id'])
 
         else:
             if not 'parent' in message:
@@ -287,10 +296,9 @@ class Heimdall:
             data = (message['content'].replace('&', '{ampersand}'), message['id'], message['parent'],
                     message['sender']['id'], message['sender']['name'],
                     self.heimdall.normaliseNick(message['sender']['name']),
-                    message['time'])
+                    message['time'], self.room, self.room+message['id'])
  
-        self.write_to_database('''INSERT OR FAIL INTO {} VALUES(?, ?, ?, ?, ?, ?, ?)'''.format(self.room), values=data)
-
+        self.write_to_database('''INSERT OR FAIL INTO messages VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)''', values=data)
 
     def next_day(self, day):
         """Returns the timestamp of UTC midnight on the day following the timestamp given"""
@@ -336,7 +344,7 @@ class Heimdall:
 
     def get_position(self, nick):
         """Returns the rank the supplied nick has by number of messages"""
-        self.c.execute('''SELECT normname, count FROM (SELECT normname, COUNT(*) as count FROM {} GROUP BY normname) ORDER BY count DESC'''.format(self.room))
+        self.c.execute('''SELECT normname, count FROM (SELECT normname, COUNT(*) as count FROM messages WHERE room IS ? GROUP BY normname) ORDER BY count DESC''', (self.room,))
         normnick = self.heimdall.normaliseNick(nick)
         position = 0
         while True:
@@ -351,7 +359,7 @@ class Heimdall:
 
     def get_user_at_position(self, position):
         """Returns the user at the specified position"""
-        self.c.execute('''SELECT sendername FROM (SELECT sendername, normname, COUNT(*) as count FROM {} GROUP BY normname) ORDER BY count DESC'''.format(self.room))
+        self.c.execute('''SELECT sendername FROM (SELECT sendername, normname, COUNT(*) as count FROM messages WHERE room IS ? GROUP BY normname) ORDER BY count DESC''', (self.room,))
 
         # Check to see they've passed a number
         try:
@@ -408,22 +416,22 @@ class Heimdall:
         normnick = self.heimdall.normaliseNick(user)
 
         # Query gets the number of messages sent
-        self.c.execute('''SELECT count(*) FROM {} WHERE normname is ?'''.format(self.room), (normnick,))
+        self.c.execute('''SELECT count(*) FROM messages WHERE room IS ? AND normname IS ?''', (self.room, normnick,))
         count = self.c.fetchone()[0]
 
         if count == 0:
             return('User @{} not found.'.format(user.replace(' ','')))
 
         # Query gets the earliest message sent
-        self.c.execute('''SELECT * FROM {} WHERE normname IS ? ORDER BY time ASC'''.format(self.room), (normnick,))
+        self.c.execute('''SELECT * FROM messages WHERE room IS ? AND normname IS ? ORDER BY time ASC''', (self.room, normnick,))
         earliest = self.c.fetchone()
 
         # Query gets the most recent message sent
-        self.c.execute('''SELECT * FROM {} WHERE normname IS ? ORDER BY time DESC'''.format(self.room), (normnick,))
+        self.c.execute('''SELECT * FROM messages WHERE room IS ? AND normname IS ? ORDER BY time DESC''', (self.room, normnick,))
         latest = self.c.fetchone()
 
         days = {}
-        self.c.execute('''SELECT time, COUNT(*) FROM {} WHERE normname IS ? GROUP BY CAST(time / 86400 AS INT)'''.format(self.room), (normnick,))
+        self.c.execute('''SELECT time, COUNT(*) FROM messages WHERE room IS ? AND normname IS ? GROUP BY CAST(time / 86400 AS INT)''', (self.room, normnick,))
         daily_messages = self.c.fetchall()
         days = {}
         for message in daily_messages:
@@ -477,7 +485,7 @@ class Heimdall:
 
         # Get requester's position.
         position = self.get_position(normnick)
-        self.c.execute('''SELECT COUNT(normname) FROM (SELECT normname, COUNT(*) as count FROM {} GROUP BY normname) ORDER BY count DESC'''.format(self.room))
+        self.c.execute('''SELECT COUNT(normname) FROM (SELECT normname, COUNT(*) as count FROM messages WHERE room IS ? GROUP BY normname) ORDER BY count DESC''', (self.room,))
         no_of_posters = self.c.fetchone()[0]
         # Collate and send the lot.
         return("""
@@ -494,11 +502,11 @@ Ranking:\t\t\t\t\t{} of {}.
 
     def get_room_stats(self):
         """Gets and sends stats for rooms"""
-        self.c.execute('''SELECT count(*) FROM {}'''.format(self.room))
+        self.c.execute('''SELECT count(*) FROM messages WHERE room IS ?''', (self.room,))
         count = self.c.fetchone()[0]
 
         # Calculate top ten posters of all time
-        self.c.execute('''SELECT sendername,normname,COUNT(normname) AS freq FROM {} GROUP BY normname ORDER BY freq DESC LIMIT 10'''.format(self.room))
+        self.c.execute('''SELECT sendername,normname,COUNT(normname) AS freq FROM messages WHERE room IS ? GROUP BY normname ORDER BY freq DESC LIMIT 10''', (self.room,))
         results = self.c.fetchall()
         top_ten = ""
         for i, result in enumerate(results):
@@ -506,8 +514,11 @@ Ranking:\t\t\t\t\t{} of {}.
 
         # Get activity over the last 28 days
         lower_bound = self.next_day(time.time()) - (60*60*24*28)
-        self.c.execute('''SELECT time, COUNT(*) FROM {} WHERE time > ? GROUP BY CAST(time / 86400 AS INT)'''.format(self.room), (lower_bound,))
+        self.c.execute('''SELECT time, COUNT(*) FROM messages WHERE room IS ? AND time > ? GROUP BY CAST(time / 86400 AS INT)''', (self.room, lower_bound,))
         last_28_days = self.c.fetchall()
+        days = last_28_days[:]
+        for day in days:
+            last_28_days.append((self.next_day(day[0])-60*60*24, day[1],))
         days = last_28_days[:]
         for day in days:
             last_28_days.append((self.next_day(day[0])-60*60*24, day[1],))
@@ -522,7 +533,7 @@ Ranking:\t\t\t\t\t{} of {}.
         if midnight in [tup[0] for tup in last_28_days]:
             messages_today = dict(last_28_days)[midnight]
 
-        self.c.execute('''SELECT time, COUNT(*) FROM {} GROUP BY CAST(time/86400 AS INT)'''.format(self.room))
+        self.c.execute('''SELECT time, COUNT(*) FROM messages WHERE room IS ? GROUP BY CAST(time/86400 AS INT)''', (self.room,))
         messages_by_day = self.c.fetchall()
 
         title = "Messages in &{}, last 28 days".format(self.room)

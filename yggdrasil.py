@@ -27,8 +27,8 @@ def run_forseti(queue):
 def run_heimdall(room, queue):
     heimdall.main((room, queue))
 
-def run_hermothr(room):
-    hermothr.main(room)
+def run_hermothr(room, queue):
+    hermothr.main((room, queue,))
 
 def main():
     rooms = ['xkcd', 'music', 'queer', 'bots', 'test']
@@ -39,7 +39,7 @@ def main():
     instance.start()
 
     for room in rooms:
-        instance = mp.Process(target = run_hermothr, args=(room,))
+        instance = mp.Process(target = run_hermothr, args=(room, queue))
         instance.daemon = True
         instance.start()
     

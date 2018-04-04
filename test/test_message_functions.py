@@ -7,7 +7,7 @@ class TestBasics(unittest.TestCase):
         self.heimdall = Heimdall('test_data', verbose = False)
         self.heimdall.connect_to_database()
 
-        self.heimdall.c.execute('''DELETE FROM test_data WHERE normname = ?''',('testingheimdall',))
+        self.heimdall.c.execute('''DELETE FROM messages WHERE normname = ?''',('testingheimdall',))
         self.heimdall.conn.commit()
 
         self.message_with_data_parent = {   'type': 'send-event',
@@ -55,5 +55,5 @@ class TestBasics(unittest.TestCase):
         assert self.heimdall.insert_message(self.message_with_none) == None
 
     def tearDown(self):
-        self.heimdall.c.execute('''DELETE FROM test_data WHERE normname = ?''',('testingheimdall',))
+        self.heimdall.c.execute('''DELETE FROM messages WHERE normname = ?''',('testingheimdall',))
         self.heimdall.conn.commit()

@@ -1,3 +1,5 @@
+import copy
+import pprint
 import os
 import shutil
 import time
@@ -46,16 +48,42 @@ class testMessageDelivery(unittest.TestCase):
                                 "to": "hermothrgroups"},
                                 ]
 
-        self.hermothr.messages = {}
-        self.hermothr.write_messages()
         for message in self.messages:
-            self.hermothr.write_message(message)
+            write_packet = (message['sender'],
+                            self.hermothr.hermothr.normaliseNick(message['to']),
+                            message['all_recipients'],
+                            message['time'],
+                            message['room'],
+                            message['text'],
+                            "{}{}{}{}".format(  message['sender'],
+                                                time.time(),
+                                                self.hermothr.hermothr.normaliseNick(message['to']),
+                                                message['all_recipients']),
+                            0,
+                            '')
+
+            self.hermothr.write_to_database('''INSERT INTO notifications VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)''', values=write_packet)
+
 
         self.packet = { 'type': 'send-event',
                         'data': {   'id': 'asdfg',
                                     'content': 'This is a message.',
                                     'sender':   {   'id':      'agent:   ',
                                                     'name':    'Hermothr'}}}
+
+        packet = self.packet
+        groupings = {   "NotifierBots":     ["Hermothr", "TellBot", "HermothrGroup"],
+                        "ProjectYggdrasil": ["Heimdall", "Hermothr"],
+                        "RandomGroup":      ["me", "you", "someperson"]}
+        for group in list(groupings.keys()):
+            packet['data']['content'] = "!group *{} {}".format(group, " ".join(["@"+name for name in groupings[group]]))
+            self.hermothr.parse(packet)
+
+    def tearDown(self):
+        self.hermothr.c.execute('''DROP TABLE notifications''')
+        self.hermothr.conn.commit()
+        self.hermothr.conn.close()
+
     def test_no_message(self):
         packet = self.packet
         packet['data']['sender']['name'] = "NoMessagesForMe"
@@ -63,82 +91,109 @@ class testMessageDelivery(unittest.TestCase):
 
     def test_single_message(self):
         packet = self.packet
-        assert self.hermothr.check_for_messages(packet) == ['<Hermothr to Hermothr 00m00 ago in &xkcd> test message 123 blah']
+        assert [message[0] for message in self.hermothr.check_for_messages(packet)] == ['<Hermothr to Hermothr 00m00 ago in &xkcd> test message 123 blah']
     
     def test_new_message(self):
         packet = self.packet
         packet['data']['sender']['name'] = 'Hermothr-test'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Hermothr-test 01m00 ago in &test_data> test message 123 blah']
+        assert [message[0] for message in self.hermothr.check_for_messages(packet)] == ['<PouncySilverkitten to Hermothr-test 01m00 ago in &test_data> test message 123 blah']
 
     def test_multiple_messages(self):
-        delivered = self.hermothr.messages_delivered
+        self.hermothr.c.execute('''SELECT COUNT(*) FROM notifications WHERE delivered IS 1''')
+        messages_delivered = self.hermothr.c.fetchone()[0]
         packet = self.packet
         packet['data']['sender']['name'] = 'Multi-Message Test'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to Multi-Message Test 03m44 ago in &music> Look at all...', '<PouncySilverkitten to Multi-Message Test 03m04 ago in &bots> ...these messages!']
-        assert self.hermothr.messages_delivered == delivered + 2
+        messages = self.hermothr.check_for_messages(packet)
+        assert [message[0] for message in messages] == ['<PouncySilverkitten to Multi-Message Test 03m44 ago in &music> Look at all...', '<PouncySilverkitten to Multi-Message Test 03m04 ago in &bots> ...these messages!']
+        for message in messages:
+            self.hermothr.thought_delivered[message[0]] = message[1]
+        packet = self.packet
+        packet['type'] = "send-reply"
+        packet['data']['id'] = "id12345"
+        packet['data']['content'] = "<PouncySilverkitten to Multi-Message Test 03m44 ago in &music> Look at all..."
+        self.hermothr.parse(packet)
+        packet['data']['id'] = "id67890"
+        packet['data']['content'] = "<PouncySilverkitten to Multi-Message Test 03m04 ago in &bots> ...these messages!"
+        self.hermothr.parse(packet)
+        self.hermothr.c.execute('''SELECT COUNT(*) FROM notifications WHERE delivered IS 1''')
+        assert self.hermothr.c.fetchone()[0] == messages_delivered + 2
 
     def test_group(self):
         packet = self.packet
         packet['data']['sender']['name'] = 'HermothrGroup'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to *NotifierBots 00m34 ago in &bots> Hi gang!']
+        assert [[part[2:] if part[0].isdigit() else part for part in message[0].split('00m')] for message in self.hermothr.check_for_messages(packet)] == [['<PouncySilverkitten to *NotifierBots ',' ago in &bots> Hi gang!']]
 
     def test_groups(self):
         packet = self.packet
         packet['data']['sender']['name'] = 'HermothrGroups'
-        assert self.hermothr.check_for_messages(packet) == ['<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil 00m34 ago in &bots> Hi gang!']
+        returned = self.hermothr.check_for_messages(packet)
+        responses = [[part[2:] if part[0].isdigit() else part for part in message[0].split('00m')] for message in returned]
+        assert len(returned[0]) == 2
+        assert responses == [['<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil ',' ago in &bots> Hi gang!']]
         
     def test_pipeline(self):
-        with open('test_messages.json','w') as f:
-            f.write('{}')
-        self.hermothr.read_messages()
-
-        self.hermothr.groups = {"NotifierBots":     ["Hermothr", "TellBot"],
-                                "ProjectYggdrasil": ["Heimdall", "Hermothr"],
-                                "RandomGroup":      ["me", "you", "some person"]}
         template = self.packet
 
         template['data']['sender']['name'] = 'Pouncy Silverkitten'
-        packet = template
+        packets = []
 
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm @Hermothr This is the first test message."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm @Hermothr @Pouncy This is the second test message."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm *NotifierBots This is the third test message."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm *NotifierBots *ProjectYggdrasil This is the fourth."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm *NotifierBots @Pouncy This is the fifth."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm *RandomGroup @Hermothr This is the sixth..."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm @Hermothr @Pouncy *NotAGroup ...and the seventh."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm no-one'll get this."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm *RandomGroup and you shouldn't get this."
-        self.hermothr.parse(packet)
+        packets.append(packet)
         
+        packet = copy.deepcopy(template)
         packet['data']['content'] = "!herm @Pouncy or this one, @Hermothr."
-        self.hermothr.parse(packet)
+        packets.append(packet)
+
+        for packet_to_be_sent in packets:
+            self.hermothr.parse(packet_to_be_sent)
         
+        packet = template
         packet['data']['content'] = "/me is tired after all that."
         packet['data']['sender']['name'] = "Hermothr"
 
         responses = self.hermothr.check_for_messages(packet)
-        assert responses[0] == '<PouncySilverkitten to Hermothr 00m00 ago in &test_data> This is the first test message.'
-        assert responses[1] == '<PouncySilverkitten to Hermothr, Pouncy 00m00 ago in &test_data> This is the second test message.'
-        assert responses[2] == '<PouncySilverkitten to *NotifierBots 00m00 ago in &test_data> This is the third test message.'
-        assert responses[3] == '<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil 00m00 ago in &test_data> This is the fourth.'
-        assert responses[4] == '<PouncySilverkitten to *NotifierBots, Pouncy 00m00 ago in &test_data> This is the fifth.'
-        assert responses[5] == '<PouncySilverkitten to *RandomGroup, Hermothr 00m00 ago in &test_data> This is the sixth...'
-        assert responses[6] == '<PouncySilverkitten to Hermothr, Pouncy, *NotAGroup 00m00 ago in &test_data> ...and the seventh.'
 
+        assert len(responses[0]) == 2
+        assert len(responses[6]) == 2
+        responses = [[part[1:] if part[0].isdigit() else part for part in message[0].split('00m0')] for message in responses]
+        
+        assert responses[1] == ['<PouncySilverkitten to Hermothr ',' ago in &test_data> This is the first test message.']
+        assert responses[2] == ['<PouncySilverkitten to Hermothr, Pouncy ',' ago in &test_data> This is the second test message.']
+        assert responses[3] == ['<PouncySilverkitten to *NotifierBots ',' ago in &test_data> This is the third test message.']
+        assert responses[4] == ['<PouncySilverkitten to *NotifierBots, *ProjectYggdrasil ',' ago in &test_data> This is the fourth.']
+        assert responses[5] == ['<PouncySilverkitten to *NotifierBots, Pouncy ',' ago in &test_data> This is the fifth.']
+        assert responses[6] == ['<PouncySilverkitten to *RandomGroup, Hermothr ',' ago in &test_data> This is the sixth...']
+        assert responses[7] == ['<PouncySilverkitten to Hermothr, Pouncy, *NotAGroup ',' ago in &test_data> ...and the seventh.']
