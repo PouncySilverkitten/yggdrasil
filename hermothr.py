@@ -28,7 +28,7 @@ class Hermothr:
         self.conn = sqlite3.connect('data/hermothr/test_data.db') if self.test else sqlite3.connect('yggdrasil.db')
         self.c = self.conn.cursor()
 
-        self.hermothr = karelia.newBot('Hermóðr', room)
+        self.hermothr = karelia.newBot('Hermóðr', self.room)
         self.not_commands = ['!nnotify', '!herm', '!hermothr']
 
         self.long_help_template = ""
@@ -90,7 +90,7 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
         if os.path.basename(os.path.dirname(os.path.realpath(__file__))) != "prod-yggdrasil":
             self.hermothr.stockResponses['longHelp'] += "\nThis is a testing instance and may not be reliable."
 
-    def write_to_database(self, query, **kwargs):
+    def write_to_database(self, statement, **kwargs):
         values = kwargs['values'] if 'values' in kwargs else ()
         mode = kwargs['mode'] if 'mode' in kwargs else "execute"
 
@@ -100,9 +100,9 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
 
         else:
             if mode == "execute":
-                self.c.execute(query, values)
+                self.c.execute(statement, values)
             elif mode == "executemany":
-                self.c.execute_many(query, values)
+                self.c.execute_many(statement, values)
             else:
                 pass
             self.conn.commit()
