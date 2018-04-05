@@ -14,16 +14,7 @@ class Forseti:
     def main(self):
         while True:
             incoming = self.queue.get()
-            if len(incoming) == 3:
-                query, values, mode = incoming[0], incoming[1], incoming[2]
-            else len(incoming) == 2:
-                query = incoming[0]
-                if type(incoming[1]) is str:
-                    values = ()
-                    mode = incoming[1]
-                else:
-                    values = incoming[1]
-                    mode = "execute"
+            query, values, mode = incoming[0], incoming[1], incoming[2]
 
             if mode == 'execute':
                 try:
