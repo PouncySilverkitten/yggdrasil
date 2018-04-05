@@ -173,9 +173,9 @@ class Heimdall:
         
         else:
             if mode == "execute":
-                self.c.execute(query, values)
+                self.c.execute(statement, values)
             elif mode == "executemany":
-                self.c.executemany(query, values)
+                self.c.executemany(statement, values)
             else:
                 pass
             self.conn.commit()
