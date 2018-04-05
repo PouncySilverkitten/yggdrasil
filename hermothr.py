@@ -4,9 +4,11 @@ import datetime
 import json
 import karelia
 import multiprocessing as mp
+import os
 import pprint
 import queue
 import re
+import sqlite3
 import sys
 import time
 
@@ -15,45 +17,51 @@ import karelia
 class Hermothr:
     """The Hermothr object is a self-contained instance of the hermothr bot, connected to a single room"""
     def __init__(self, room, **kwargs):
+        if type(room) == str:
+            self.room = room
+            self.queue = None
+        else:
+            self.room = room[0]
+            self.queue = room[1]
+
         self.test = True if ('test' in kwargs and kwargs['test']) or room == "test_data" else False
+        self.conn = sqlite3.connect('data/hermothr/test_data.db') if self.test else sqlite3.connect('yggdrasil.db')
+        self.c = self.conn.cursor()
 
         self.hermothr = karelia.newBot('Hermóðr', room)
         self.not_commands = ['!nnotify', '!herm', '!hermothr']
-        self.room = room
 
-        self.messages_file = "test_messages.json" if self.test else "hermothr_messages.json"
-        self.groups_file = "test_groups.json" if self.test else "hermothr_groups.json"
-        self.messages_delivered_file = "messages_delivered_test.json" if self.test else "messages_delivered.json"
-
-        self.last_message_from = "Hermóðr"
-        self.message_ids = {}
-        self.messages = {}
-        self.groups = {}
         self.long_help_template = ""
         self.short_help_template = ""
-
         self.messages_to_be_delivered = []
 
-        try:
-            with open(self.messages_delivered_file, 'r') as f:
-                self.messages_delivered = json.loads(f.read())[0]
-        except FileNotFoundError:
-            with open(self.messages_delivered_file, 'w') as f:
-                f.write("[0]")
-                messages_delivered = 0
-
+        self.thought_delivered = {}
         self.message_body_template = "<{} to {} {} ago in &{}> {}"
 
         try:
-            self.read_messages()
-        except FileNotFoundError:
-            with open(self.messages_file, 'w') as f:
-                f.write('{}')
+            self.write_to_database('''  CREATE TABLE notifications(
+                                            sendername text,
+                                            recipient text,
+                                            allrecipients text,
+                                            time real,
+                                            room text,
+                                            message text,
+                                            globalid text,
+                                            delivered int,
+                                            id int
+                                        )''')
+            self.write_to_database('''CREATE UNIQUE INDEX notificationid on notifications(globalid)''')
+        except:
+            self.hermothr.log()
+
         try:
-            self.read_groups()
-        except FileNotFoundError:
-            with open(self.groups_file, 'w') as f:
-                f.write('{}')
+            self.write_to_database('''  CREATE TABLE groups(
+                                            groupname text,
+                                            members text
+                                        )''')
+            self.write_to_database('''CREATE UNIQUE INDEX groupname ON groups(groupname)''')
+        except:
+            self.hermothr.log()
 
     def gen_help_messages(self):
         """Produces help messages conforming to the templates below"""
@@ -77,24 +85,34 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
     
 @Hermóðr also obeys the euphorian bot standards. It\'s likely to have bugs; when you find one, notify Pouncy or log it at https://github.com/PouncySilverkitten/yggdrasil/issues/new. Part of the Yggdrasil Project. {} messages delivered to date."""
         self.short_help_template = 'Use {} to send messages to people who are currently unavailable.'
-        self.hermothr.stockResponses['longHelp'] = self.long_help_template.format(', '.join(self.not_commands), self.messages_delivered)
+        self.hermothr.stockResponses['longHelp'] = self.long_help_template.format(', '.join(self.not_commands), 0)
         self.hermothr.stockResponses['shortHelp'] = self.short_help_template.format(', '.join(self.not_commands))
+        if os.path.basename(os.path.dirname(os.path.realpath(__file__))) != "prod-yggdrasil":
+            self.hermothr.stockResponses['longHelp'] += "\nThis is a testing instance and may not be reliable."
 
-    def read_messages(self):
-        """Loads messages from file"""
-        with open(self.messages_file, 'r') as f:
-            self.messages = json.loads(f.read())
+    def write_to_database(self, query, **kwargs):
+        values = kwargs['values'] if 'values' in kwargs else ()
+        mode = kwargs['mode'] if 'mode' in kwargs else "execute"
 
-    def read_groups(self):
-        """Loads groups from file"""
-        with open(self.groups_file, 'r') as f:
-            self.groups = json.loads(f.read())
+        if self.queue is not None:
+            send = (statement, values, mode,)
+            self.queue.put(send)
+
+        else:
+            if mode == "execute":
+                self.c.execute(query, values)
+            elif mode == "executemany":
+                self.c.execute_many(query, values)
+            else:
+                pass
+            self.conn.commit()
 
     def list_groups(self):
         """Produces a string in the form group_name: members"""
         groups_as_string = ""
-        for group in self.groups.keys():
-            groups_as_string += "{}: {}\n".format(group, ', '.join(self.groups[group]))
+        groups = self.get_dict_of_groups()
+        for group in groups.keys():
+            groups_as_string += "{}: {}\n".format(group, groups[group].replace(',', ', '))
         return groups_as_string
 
     def format_recipients(self, names):
@@ -113,13 +131,8 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
 
     def check_messages_for_sender(self, sender):
         """Returns a list of messages for a given sender"""
-        self.read_messages()
-        if sender in self.messages:
-            for_sender = self.messages[sender]
-        else:
-            return []
-        del self.messages[sender]
-        self.write_messages()
+        self.c.execute('''SELECT * FROM notifications WHERE delivered IS 0 AND recipient IS ?''', (sender,))
+        for_sender = self.c.fetchall()
         return for_sender
 
     def time_since(self, before):
@@ -155,74 +168,49 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
 
     def check_for_messages(self, packet):
         """Produces a formatted, usable list of messages for a nick"""
-        self.read_messages()
         sender = self.hermothr.normaliseNick(packet['data']['sender']['name'])
-        messages_for_sender = self.check_messages_for_sender(sender)
+        self.c.execute('''SELECT * FROM notifications WHERE delivered IS 0 AND recipient IS ?''', (sender,))
+        messages_for_sender = self.c.fetchall()
         messages = []
-        
-        with open(self.messages_delivered_file, 'r') as f:
-            self.messages_delivered = json.loads(f.read())[0]
-
         for message in messages_for_sender:
-            self.messages_delivered += 1 
-            messages.append(self.message_body_template.format(  message['sender'],
-                                                                message['all_recipients'],
-                                                                self.time_since(message['time']),
-                                                                message['room'],
-                                                                message['text']))
-
-        with open(self.messages_delivered_file, 'w') as f:
-            f.write(json.dumps([self.messages_delivered]))
+            messages.append((self.message_body_template.format( message[0],
+                                                                message[2],
+                                                                self.time_since(message[3]),
+                                                                message[4],
+                                                                message[5]),
+                                                                message[6]))
 
         return messages
 
-    def write_message(self, write_packet):
-        """Adds a message to the list of messages"""
-        self.read_messages()
-        name = write_packet["to"]
-        if name in self.messages:
-            self.messages[name].append(write_packet)
-        else:
-            self.messages[name] = [write_packet]
-        self.write_messages()
-
     def check_parent(self, parent):
         """Checks if a message_id belongs to a message sent by the bot"""
-        if parent in self.message_ids.keys():
-            return True
-        return False
+        self.c.execute('''SELECT COUNT(*) FROM notifications WHERE room IS ? AND delivered IS 1 AND id IS ?''', (self.room, parent,))
+        if self.c.fetchone()[0] == 0:
+            return False
+        return True
 
     def bland(self, name):
         """Strips whitespace"""
         return re.sub(r'\s+', '', name)
 
-    def write_messages(self):
-        """Saves messages to file"""
-        with open(self.messages_file, 'w') as f:
-            f.write(json.dumps(self.messages))
-        with open('messages_delivered.json', 'w') as f:
-            f.write(json.dumps([self.messages_delivered]))
-
-    def write_groups(self):
-        """Saves groups to file"""
-        with open(self.groups_file, 'w') as f:
-            f.write(json.dumps(self.groups))
-
     def read_who_to_notify(self, split_content):
-        """
+        """ 
         Reads groups and users from a message
 
         Returns a list of names. If the notnotify is to a group, a list of names
         will still be returned."""
-        names = list()
-        words = list()
+        names = []
+        words = []
         message = split_content[1:]
+        groups = self.get_dict_of_groups()
         for word in message:
             if word[0] == "@":
-                names.append(word[1:])
+                name = word[1:]
+                names.append(name)
             elif word[0] == '*':
-                if word[1:] in self.groups:
-                    names += self.groups[word[1:]]
+                group = word[1:]
+                if group in groups:
+                    names += groups[group].split(',')
             elif len(names) > 0:
                 return list(set(names))
             else:
@@ -232,25 +220,35 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
             return None
         return list(set(names))
 
+    def get_dict_of_groups(self):
+        self.c.execute('''SELECT * FROM groups''')
+        groups = dict(self.c.fetchall())
+        return groups
+
     def add_to_group(self, split_contents):
         """Handles !group commands"""
         grouped = []
         not_grouped = []
         del split_contents[0]
-        self.read_groups()
+        groups = self.get_dict_of_groups()
         if split_contents[0][0] == '*':
             group_name = split_contents[0][1:]
-            if group_name not in self.groups:
-                self.groups[group_name] = []
+            if group_name in groups:
+                members = groups[group_name].split(',')
+            else:
+                members = []
             del split_contents[0]
             for word in split_contents:
-                if word[0] == "@":
-                    if word[1:] not in self.groups[group_name]:
-                        self.groups[group_name].append(word[1:])
-                        grouped.append(word[1:])
-                        self.write_groups()
+                if word[0] == '@':
+                    nick = word[1:]
+                    if nick not in members:
+                        members.append(nick)
+                        grouped.append(nick)
                     else:
-                        not_grouped.append(word[1:])
+                        not_grouped.append(nick)
+
+            members = ','.join(members)
+            self.write_to_database('''INSERT OR REPLACE INTO groups VALUES (?, ?)''', values=(group_name, members))
 
             if "!notify" in self.not_commands:
                 if grouped == [] and not_grouped == []:
@@ -268,26 +266,32 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
     def remove_from_group(self, split_content):
         """Handles !ungroup commands"""
         del split_content[0]
-        self.read_groups()
+        groups = self.get_dict_of_groups()
         ungrouped = []
         not_ungrouped = []
         if split_content[0][0] == '*':
             group_name = split_content[0][1:]
-            if not group_name in self.groups.keys() and '!notify' in self.not_commands:
+            
+            if not group_name in groups and '!notify' in self.not_commands:
                 return "Group {} not found. Use !grouplist to see a list of all groups.".format(group_name)
+
+            members = groups[group_name].split(',')
             del split_content[0]
+            
             for word in split_content:
                 if word[0] == "@":
-                    if word[1:] in self.groups[group_name]:
-                        self.groups[group_name].remove(word[1:])
-                        self.write_groups()
-                        ungrouped.append(word[1:])
+                    nick = word[1:]
+                    if nick in members:
+                        members.remove(nick)
+                        ungrouped.append(nick)
                     else:
-                        not_ungrouped.append(word[1:])
+                        not_ungrouped.append(nick)
 
-            if self.groups[group_name] == []:
-                del self.groups[group_name]
-
+            if members == []:
+                self.write_to_database('''DELETE FROM groups WHERE groupname IS ?''', values=(group_name,))
+            else:
+                self.write_to_database('''UPDATE groups SET members=? WHERE groupname IS ?''', values=(','.join(members), group_name,))
+            
             if "!notify" in self.not_commands:
                 if ungrouped == [] and not_ungrouped == []:
                     return "Couldn't find anyone to remove. Syntax is !ungroup *Group @User (@UserTwo...)"
@@ -319,10 +323,15 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
             if packet['data']['name'] == 'NotBot' and packet['data']['id'].startswith('bot:'):
                 self.generate_not_commands()
 
-        elif packet['type'] == 'send-reply' and packet['data']['content'][0] == "<":
+        elif packet['type'] == 'send-reply':
+            if packet['data']['content'] in self.thought_delivered:
+                content = packet['data']['content']
+                message_id = packet['data']['id']
+                globalid = self.thought_delivered[content]
+                self.write_to_database('''UPDATE notifications SET delivered=1, id=? WHERE globalid IS ?''', values=(message_id, globalid))
+                del self.thought_delivered[packet['data']['content']]
             packet_id = packet['data']['id']
             packet_name = packet['data']['content'].split()[0][1:]
-            self.message_ids[packet_id] = packet_name
 
         elif packet['type'] == 'send-event' and not ('bot:' in packet['data']['sender']['id'] and 'Heimdall' != packet['data']['sender']['name']):
             # Handle a !(not)notify
@@ -343,39 +352,57 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                     if sender_name in [self.bland(recipient) for recipient in recipients]:
                         recipients.remove(self.bland(packet['data']['sender']['name']))
 
+                    recipients[:] = [recipient for recipient in recipients if recipient not in [",",""]]
+
                     if len(recipients) == 0: return "/me won't tell you what you already know"
                     recipients.sort()
                     names_as_string = self.format_recipients(recipients)
 
                     # Used to get a list for the response - for group and multi-nick notifies
                     for name in recipients:
-                        write_packet = {"text": sane_message,
-                                        "sender": sender_name,
-                                        "time": time.time(),
-                                        "room": self.room,
-                                        "all_recipients": all_recipients,
-                                        "to": self.hermothr.normaliseNick(name)}
-                        self.write_message(write_packet)
+                        write_packet = (sender_name,
+                                        self.hermothr.normaliseNick(name),
+                                        all_recipients,
+                                        time.time(),
+                                        self.room,
+                                        sane_message,
+                                        "{}{}{}{}".format(  sender_name,
+                                                            time.time(),
+                                                            self.hermothr.normaliseNick(name),
+                                                            all_recipients),
+                                        0,
+                                        '')
+                        self.write_to_database('''INSERT INTO notifications VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)''', values=write_packet)
 
                     return "/me will notify {}.".format(names_as_string)
 
             elif split_content[0] == "!reply" and 'parent' in packet['data']:
                 parent = packet['data']['parent']
                 if self.check_parent(parent):
-                    recipient = self.message_ids[parent]
+                    self.c.execute('''SELECT recipient FROM notifications WHERE id IS ?''', (parent,))
+                    recipient = self.c.fetchone()[0]
                     sane_message = ' '.join(split_content[1:])
 
                     if len(sane_message) == 0 or sane_message.isspace():
                         return "/me can't see a message there"
 
-                    write_packet = {"text": sane_message,
-                                    "sender": self.bland(packet['data']['sender']['name']),
-                                    'time': time.time(),
-                                    'room': self.room,
-                                    'all_recipients': 'you',
-                                    'to': self.hermothr.normaliseNick(recipient)}
+                    sender_name = self.bland(packet['data']['sender']['name'])
+                    all_recipients = "you"
+                    
 
-                    self.write_message(write_packet)
+                    write_packet = (sender_name,
+                                    self.hermothr.normaliseNick(recipient),
+                                    all_recipients,
+                                    time.time(),
+                                    self.room,
+                                    sane_message,
+                                    "{}{}{}{}".format(  sender_name,
+                                                        time.time(),
+                                                        self.hermothr.normaliseNick(recipient),
+                                                        all_recipients),
+                                    0,
+                                    '')
+                    self.write_to_database('''INSERT INTO notifications VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)''', values=write_packet)
                     return "Will do."
 
             elif split_content[0] in ["!group", "!tgroup"] and len(split_content) > 1:
@@ -386,8 +413,9 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                 return self.list_groups()
             elif split_content[0] == '!grouplist':
                 group_name = split_content[1][1:]
-                if group_name in self.groups:
-                    return '\n'.join(self.groups[group_name])
+                groups = self.get_dict_of_groups()
+                if group_name in groups:
+                    return '\n'.join(groups[group_name].split(','))
                 else:
                     return "Group not found. !grouplist to view."
 
@@ -413,41 +441,25 @@ Use !grouplist to see all the groups and their members, or !grouplist *group to 
                 self.generate_not_commands()
 
                 while True:
-                    self.read_messages()
-                    self.read_groups()
-
                     packet = self.hermothr.parse()
-                    print(packet)
-                    if packet == 'Killed':
-                        self.write_messages()
-                        self.write_groups()
-                        sys.exit()
 
                     if packet['type'] == 'send-event':
                         messages_for_sender = self.check_for_messages(packet)
-                        self.messages_to_be_delivered += [(message, packet['data']['id']) for message in messages_for_sender]
+                        self.messages_to_be_delivered += [(message[0], packet['data']['id'], message[1]) for message in messages_for_sender]
 
-                        with open(self.messages_delivered_file, 'r') as f:
-                            self.messages_delivered = json.loads(f.read())[0]
-                        self.messages_delivered += len(messages_for_sender)
-                        with open(self.messages_delivered_file, 'w') as f:
-                            f.write(json.dumps([self.messages_delivered]))
-                        self.gen_help_messages()
-
-                    for _ in range(2):
-                        if len(self.messages_to_be_delivered) != 0:
-                            message, reply = self.messages_to_be_delivered[0]
-                            del self.messages_to_be_delivered[0]
-                            self.hermothr.send(message, reply)
-
+                        for _ in range(2):
+                            if len(self.messages_to_be_delivered) != 0:
+                                message, reply, globalid = self.messages_to_be_delivered[0]
+                                self.hermothr.send(message, reply)
+                                del self.messages_to_be_delivered[0]
+                                self.thought_delivered[message] = globalid
+    
                     reply = self.parse(packet)
                     if reply is not None:
                         self.hermothr.send(reply, packet['data']['id'])
 
             except Exception:
                 self.hermothr.log()
-                self.write_messages()
-                self.write_groups()
                 time.sleep(2)
             
 rooms = ['xkcd', 'music', 'queer', 'bots']
@@ -459,9 +471,9 @@ def main(room):
 
 if __name__ == "__main__":
     
-    for room in rooms:
-        instance = mp.Process(target=main, args=(room,))
-        instance.daemon = True
-        instance.start()
+    #for room in rooms:
+    #    instance = mp.Process(target=main, args=(room,))
+    #    instance.daemon = True
+    #    instance.start()
     
     main('test')

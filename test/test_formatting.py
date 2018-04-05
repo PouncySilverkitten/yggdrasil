@@ -4,19 +4,27 @@ from hermothr import Hermothr
 class TestFormatting(unittest.TestCase):
     def setUp(self):
         self.hermothr = Hermothr('test_case', test=True)
-        self.hermothr.groups = {  'GroupOne': [   "PouncySilverkitten",
-                                                    "Hermothr",
-                                                    "Heimdall",
-                                                    "ThisUserDoesnaeExist"],
-                                    'GroupTwo': [   "UserOne",
-                                                    "UserTwo",
-                                                    "UserThree",
-                                                    "UserFour"]}
         self.packet = { 'type': 'send-event',
                         'data': {   'id': 'asdfg',
                                     'content': 'This is a message.',
                                     'sender':   {   'id':      'agent:   ',
                                                     'name':    'Hermothr'}}}
+        
+        packet = self.packet
+        groupings = {   'GroupOne': [   "PouncySilverkitten",
+                                        "Hermothr",
+                                        "Heimdall",
+                                        "ThisUserDoesnaeExist"],
+                        'GroupTwo': [   "UserOne",
+                                        "UserTwo",
+                                        "UserThree",
+                                        "UserFour"]}
+
+        for group in list(groupings.keys()):
+            packet['data']['content'] = "!group *{} {}".format(group, " ".join(["@"+name for name in groupings[group]]))
+            self.hermothr.parse(packet)
+
+
 
     def test_format_recipients(self):
         assert self.hermothr.format_recipients(['Hermothr']) == "Hermothr"
