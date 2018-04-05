@@ -168,7 +168,7 @@ class Heimdall:
         if not self.tests:
             self.heimdall.disconnect()
 
-    def write_to_database(self, query, **kwargs):
+    def write_to_database(self, statement, **kwargs):
         values = kwargs['values'] if 'values' in kwargs else ()
         mode = kwargs['mode'] if 'mode' in kwargs else "execute"
         
