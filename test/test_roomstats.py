@@ -9,12 +9,13 @@ class TestBasics(unittest.TestCase):
         self.heimdall.connect_to_database()
 
     def tearDown(self):
-        self.heimdall.c.execute('''DELETE FROM test_data WHERE id IS "id_of_message_to_be_deleted"''')
+        self.heimdall.c.execute('''DELETE FROM messages WHERE id IS "id_of_message_to_be_deleted"''')
         self.heimdall.conn.commit()
+        self.heimdall.conn.close()
 
     def test_roomstats(self):
         recvd = [line.replace('\t','') for line in self.heimdall.get_room_stats().split('\n') if not line.isspace()]
-        self.expcd = [  'There have been 1503 posts in &test_data (0 today), averaging 53 posts per day over the last 28 days (the busiest was 2018-03-12 with 1319 messages sent).',
+        self.expcd = [  'There have been 1503 posts in &test_data (0 today), averaging 107 posts per day over the last 28 days (the busiest was 2018-03-12 with 1319 messages sent).',
                         '',
                         'The top ten posters are:', 
                         ' 1) 117    Pouncy Silverkitten',
@@ -58,7 +59,7 @@ class TestBasics(unittest.TestCase):
         self.heimdall.parse(packet)
 
         recvd = [line.replace('\t','') for line in self.heimdall.get_room_stats().split('\n') if not line.isspace()]
-        self.expcd = [  'There have been 1504 posts in &test_data (1 today), averaging 53 posts per day over the last 28 days (the busiest was 2018-03-12 with 1319 messages sent).',
+        self.expcd = [  'There have been 1504 posts in &test_data (1 today), averaging 107 posts per day over the last 28 days (the busiest was 2018-03-12 with 1319 messages sent).',
                         '',
                         'The top ten posters are:', 
                         ' 1) 117    Pouncy Silverkitten',

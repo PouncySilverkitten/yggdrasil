@@ -3,44 +3,34 @@ import unittest
 from hermothr import Hermothr
 
 class TestGroups(unittest.TestCase):
-
     def setUp(self):
         self.hermothr = Hermothr('test_data', test=True)
-        self.hermothr.groups = {    'GroupOne':     [   "PouncySilverkitten",
-                                                        "Hermothr",
-                                                        "Heimdall",
-                                                        "ThisUserDoesnaeExist"],
-                                    'GroupTwo':     [   "UserOne",
-                                                        "UserTwo",
-                                                        "UserThree",
-                                                        "UserFour"],
-                                    'tradewinds':   [   "Nuvanda",
-                                                        "totally�����",
-                                                        "DoctorNumberFour",
-                                                        "Xyzzy",
-                                                        "ㅇㅈㅇ",
-                                                        "K",
-                                                        "Garmy"],
-                                    }
 
-        self.hermothr.write_groups()
         self.hermothr.not_commands.append("!notify")
         self.packet = { 'type': 'send-event',
                         'data': {   'id': 'asdfg',
                                     'sender':   {   'id':   'agent:   ',
                                                     'name': 'ImAUser'}}}
+        packet = self.packet
+        packet['data']['content'] = '!group *GroupOne @PouncySilverkitten @Hermothr @Heimdall @ThisUserDoesnaeExist'
+        self.hermothr.parse(packet)
+        packet['data']['content'] = '!group *GroupTwo @UserOne @UserTwo @UserThree @UserFour'
+        self.hermothr.parse(packet)
+        packet['data']['content'] = '!group *tradewinds @Nuvanda @totallyhuman @DoctorNumberFour @Xyzzy @ㅇㅈㅇ @K @Garmy'
+        self.hermothr.parse(packet)
 
     def tearDown(self):
-        if os.path.exists('hermothr_groups.json'):
-            self.hermothr.groups_file = "hermothr_groups.json"
-            self.hermothr.read_groups()
-            self.hermothr.groups_file = "test_groups.json"
-            self.hermothr.write_groups()
+        try:
+            self.hermothr.c.execute('''DROP TABLE groups''')
+            self.hermothr.conn.commit()
+            self.hermothr.conn.close()
+        except:
+            pass
 
     def test_grouplist(self):
         packet = self.packet
         packet['data']['content'] = '!grouplist'
-        assert self.hermothr.parse(packet) == 'GroupOne: PouncySilverkitten, Hermothr, Heimdall, ThisUserDoesnaeExist\nGroupTwo: UserOne, UserTwo, UserThree, UserFour\ntradewinds: Nuvanda, totally�����, DoctorNumberFour, Xyzzy, ㅇㅈㅇ, K, Garmy\n'
+        assert self.hermothr.parse(packet) == 'GroupOne: PouncySilverkitten, Hermothr, Heimdall, ThisUserDoesnaeExist\nGroupTwo: UserOne, UserTwo, UserThree, UserFour\ntradewinds: Nuvanda, totallyhuman, DoctorNumberFour, Xyzzy, ㅇㅈㅇ, K, Garmy\n'
 
     def test_list_bad_group(self):
         packet = self.packet
@@ -56,9 +46,9 @@ class TestGroups(unittest.TestCase):
         packet = self.packet
         packet['data']['content'] = '!ungroup *GroupOne @PouncySilverkitten'
         assert self.hermothr.parse(packet) == "Removing PouncySilverkitten from group GroupOne."
-        assert self.hermothr.groups['GroupOne'] == ['Hermothr', 'Heimdall', 'ThisUserDoesnaeExist']
+        assert self.hermothr.get_dict_of_groups()['GroupOne'] == "Hermothr,Heimdall,ThisUserDoesnaeExist"
 
-    def test_bad_ungroup(self):
+    def test_ungroup_no_users_in_group(self):
         packet = self.packet
         packet['data']['content'] = '!ungroup *GroupOne @Pouncy'
         assert self.hermothr.parse(packet) == "No user(s) specified are in the group."
@@ -82,16 +72,16 @@ class TestGroups(unittest.TestCase):
         packet = self.packet
         packet['data']['content'] = "!group *GroupOne @PouncySilverkitten @UserOne"
         assert self.hermothr.parse(packet) == "Adding UserOne to group GroupOne (PouncySilverkitten already added)."
-        assert self.hermothr.groups["GroupOne"] == ["PouncySilverkitten", "Hermothr", "Heimdall", "ThisUserDoesnaeExist", "UserOne"]
+        assert self.hermothr.get_dict_of_groups()["GroupOne"] == "PouncySilverkitten,Hermothr,Heimdall,ThisUserDoesnaeExist,UserOne"
 
     def test_group(self):
         packet = self.packet
         packet['data']['content'] = "!group *GroupTwo @PouncySilverkitten"
         assert self.hermothr.parse(packet) == "Adding PouncySilverkitten to group GroupTwo."
-        assert self.hermothr.groups["GroupTwo"] == ["UserOne", "UserTwo", "UserThree", "UserFour", "PouncySilverkitten"]
+        assert self.hermothr.get_dict_of_groups()["GroupTwo"] == "UserOne,UserTwo,UserThree,UserFour,PouncySilverkitten"
         packet['data']['content'] = "!group *GroupTwo @Pouncy @Hermothr"
         assert self.hermothr.parse(packet) == "Adding Pouncy, Hermothr to group GroupTwo."
-        assert self.hermothr.groups["GroupTwo"] == ["UserOne", "UserTwo", "UserThree", "UserFour", "PouncySilverkitten", "Pouncy", "Hermothr"]
+        assert self.hermothr.get_dict_of_groups()["GroupTwo"] == "UserOne,UserTwo,UserThree,UserFour,PouncySilverkitten,Pouncy,Hermothr"
 
     def test_group_invalid_user(self):
         packet = self.packet
@@ -107,7 +97,8 @@ class TestGroups(unittest.TestCase):
         packet = self.packet
         packet['data']['content'] = "!group *GroupThree @PouncySilverkitten"
         assert self.hermothr.parse(packet) == "Adding PouncySilverkitten to group GroupThree."
-        assert self.hermothr.groups['GroupThree'] == ["PouncySilverkitten"]
+        assert 'GroupThree' in self.hermothr.get_dict_of_groups()
+        assert self.hermothr.get_dict_of_groups()['GroupThree'] == "PouncySilverkitten"
 
     def test_ungroup_invalid_user(self):
         packet = self.packet
@@ -118,7 +109,7 @@ class TestGroups(unittest.TestCase):
         packet = self.packet
         packet['data']['content'] = "!ungroup *GroupTwo @UserOne @UserTwo @UserThree @UserFour"
         self.hermothr.parse(packet)
-        assert self.hermothr.groups == {'GroupOne': ['PouncySilverkitten', 'Hermothr', 'Heimdall', 'ThisUserDoesnaeExist'], 'tradewinds': ['Nuvanda', 'totally�����', 'DoctorNumberFour', 'Xyzzy', 'ㅇㅈㅇ', 'K', 'Garmy']}
+        self.hermothr.get_dict_of_groups == {'GroupOne': "PouncySilverkitten,Hermothr,Heimdall,ThisUserDoesnaeExist", 'tradewinds': "Nuvanda,totallyhuman,DoctorNumberFour,Xyzzy,ㅇㅈㅇ,K,Garmy"}
 
     def test_ungroup_no_user(self):
         packet = self.packet
