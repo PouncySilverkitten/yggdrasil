@@ -26,8 +26,13 @@ Forseti is a database mediation library. It's used by yggdrasil.py to facilitate
 
 ## Setup
 `git clone https://github.com/pouncysilverkitten/yggdrasil/`
+
 `cd yggdrasil`
+
 `pip install pipenv`
+
 `pipenv install`
+
 `pipenv run python yggdrasil.py & disown`
+
 Heimdall will automatically create a database and collate messages to it if no database is found; while doing so it remains in 'stealth' mode; i.e. not visible on the nicklist. Once a full set of messages for the room has been downloaded and processed, it will automatically connect.
